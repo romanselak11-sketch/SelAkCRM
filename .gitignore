@@ -1,0 +1,26 @@
+# Зависимости и окружения
+node_modules/
+backend/.venv/
+frontend/node_modules/
+
+# Сборки и кэш
+backend/dist/
+frontend/dist/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# IDE / ОС
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Локальные данные разработки
+backend/dev.db
+backend/*.db-journal
+.env
+.env.local

@@ -1,0 +1,38 @@
+[project]
+name = "selakcrm-api"
+version = "0.1.0"
+description = "SelAkCRM API (FastAPI, замена NestJS)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "sqlalchemy>=2.0.36",
+  "alembic>=1.14.0",
+  "pydantic-settings>=2.6.0",
+  "PyJWT>=2.9.0",
+  "bcrypt>=4.2.0",
+  "python-multipart>=0.0.12",
+  "APScheduler>=3.10.4",
+  "cuid>=0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "httpx>=0.28.0",
+]
+windows-exe = [
+  "pyinstaller>=6.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["selakcrm*"]
