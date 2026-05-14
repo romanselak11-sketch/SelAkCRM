@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../api';
+import { useAuth } from '../auth';
+import { ClientDetailsModal, type ClientDetails } from '../components/ClientDetailsModal';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
 import { Modal } from '../components/Modal';
 import { PageHeading } from '../components/PageHeading';
+import { PolicyDetailsModal } from '../components/PolicyDetailsModal';
+import { PolicyForm } from '../components/PolicyForm';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
 import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
@@ -35,6 +39,7 @@ function safeHttpHref(raw: string | null | undefined): string | null {
 }
 
 export function ClientsPage() {
+  const { me } = useAuth();
   const [rows, setRows] = useState<Client[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [listPage, setListPage] = useState(1);
@@ -48,7 +53,12 @@ export function ClientsPage() {
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
   const [documentsUrl, setDocumentsUrl] = useState('');
+  const [selectedClient, setSelectedClient] = useState<ClientDetails | null>(null);
+  const [policyDetailsId, setPolicyDetailsId] = useState<string | null>(null);
+  const [editPolicyId, setEditPolicyId] = useState<string | null>(null);
+  const [policyReloadNonce, setPolicyReloadNonce] = useState(0);
   const { searchInput, setSearchInput, debouncedQ } = useDebouncedSearchQuery(setListPage);
+  const canManagePolicies = me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER';
 
   useEffect(() => {
     setDocumentTitle('Клиенты');
@@ -104,6 +114,10 @@ export function ClientsPage() {
   function closeModal() {
     setModalOpen(false);
     resetForm();
+  }
+
+  function openClientDetails(c: Client) {
+    setSelectedClient(c);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -247,6 +261,47 @@ export function ClientsPage() {
         </form>
       </Modal>
 
+      <ClientDetailsModal
+        key={selectedClient?.id ?? 'no-client'}
+        open={selectedClient !== null}
+        client={selectedClient}
+        canViewPolicies={canManagePolicies}
+        onClose={() => setSelectedClient(null)}
+        onOpenPolicy={(policyId) => setPolicyDetailsId(policyId)}
+        reloadNonce={policyReloadNonce}
+      />
+
+      <PolicyDetailsModal
+        open={policyDetailsId !== null}
+        policyId={policyDetailsId}
+        canEdit={canManagePolicies}
+        onClose={() => setPolicyDetailsId(null)}
+        onEdit={(policyId) => {
+          setPolicyDetailsId(null);
+          setEditPolicyId(policyId);
+        }}
+        reloadNonce={policyReloadNonce}
+      />
+
+      <Modal
+        open={editPolicyId !== null}
+        onClose={() => setEditPolicyId(null)}
+        title="Редактирование полиса"
+        size="lg"
+      >
+        {editPolicyId ? (
+          <PolicyForm
+            key={editPolicyId}
+            policyId={editPolicyId}
+            onSuccess={() => {
+              setEditPolicyId(null);
+              setPolicyReloadNonce((prev) => prev + 1);
+            }}
+            onCancel={() => setEditPolicyId(null)}
+          />
+        ) : null}
+      </Modal>
+
       <section className="card">
         <div className="card-header">
           <h2 className="card-title">Список</h2>
@@ -285,7 +340,20 @@ export function ClientsPage() {
                 rows.map((c) => {
                   const docHref = safeHttpHref(c.documentsUrl);
                   return (
-                    <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(c)}>
+                    <tr
+                      key={c.id}
+                      className="data-table__click-row"
+                      onClick={() => openClientDetails(c)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openClientDetails(c);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Открыть карточку клиента"
+                    >
                       <td>
                         {c.lastName} {c.firstName}
                         {c.middleName ? ` ${c.middleName}` : ''}

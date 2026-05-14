@@ -122,6 +122,9 @@ export function TasksPage() {
                     <th>№</th>
                     <th>Создана</th>
                     <th>Статус</th>
+                    <th>Клиент</th>
+                    <th>Полис</th>
+                    <th>Объект страхования</th>
                     <th>Причина отказа</th>
                     <th>Статус изменён</th>
                   </tr>
@@ -129,7 +132,7 @@ export function TasksPage() {
                 <tbody>
                   {rows.length === 0 ? (
                     <tr className="data-table__empty-row">
-                      <td colSpan={5}>
+                      <td colSpan={8}>
                         <p className="empty-hint empty-hint--in-cell">Задач пока нет.</p>
                       </td>
                     </tr>
@@ -156,6 +159,13 @@ export function TasksPage() {
                             {RENEWAL_STATUS_LABELS[t.status]}
                           </span>
                         </td>
+                        <td>
+                          {t.client.lastName} {t.client.firstName} {t.client.middleName ?? ''}
+                        </td>
+                        <td>
+                          {t.policy.companyName} / {t.policy.productName}
+                        </td>
+                        <td>{t.policy.insuredObject?.trim() || '—'}</td>
                         <td
                           className="data-table__decline-reason"
                           title={t.declineReason?.trim() || undefined}

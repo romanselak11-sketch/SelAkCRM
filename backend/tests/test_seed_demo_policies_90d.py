@@ -41,6 +41,32 @@ def test_seed_policies_respects_90_day_window_and_count() -> None:
             assert p.updatedAt >= p.createdAt
             assert p.updatedAt <= now
             assert p.endDate >= p.startDate
+            assert p.insuredObject is not None and p.insuredObject != ""
             assert_valid_policy_combination(p.insuranceSumS, p.premiumPercent, p.premiumRubles)
+    finally:
+        db.close()
+
+
+def test_seed_policies_number_prefix_includes_days() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = Session()
+    now = datetime(2026, 4, 16, 18, 30, 0)
+    try:
+        seed_demo_policies_90d(db, days=120, count=3, seed=2, now=now, clients_pool=3)
+        db.commit()
+    finally:
+        db.close()
+
+    db = Session()
+    try:
+        numbers = [p.number for p in db.query(Policy).order_by(Policy.createdAt.asc()).all()]
+        assert numbers
+        assert all(n.startswith("D120-") for n in numbers)
     finally:
         db.close()

@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from selakcrm.desktop_runtime import apply_desktop_environment_if_frozen, resolve_user_data_dir
+from selakcrm.desktop_runtime import apply_desktop_environment_if_frozen, resolve_user_data_dir, run_desktop
 
 
 def test_resolve_user_data_dir_exists(monkeypatch, tmp_path):
@@ -46,3 +46,44 @@ def test_apply_desktop_sets_paths_when_frozen(monkeypatch, tmp_path):
 
     apply_desktop_environment_if_frozen()
     assert os.environ["DATABASE_URL"].startswith("sqlite:///")
+
+
+def test_apply_desktop_sets_std_streams_when_windowed(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    monkeypatch.setattr(sys, "stdout", None, raising=False)
+    monkeypatch.setattr(sys, "stderr", None, raising=False)
+
+    apply_desktop_environment_if_frozen()
+    assert sys.stdout is not None
+    assert sys.stderr is not None
+
+
+def test_run_desktop_falls_back_when_tray_deps_missing(monkeypatch):
+    # Симулируем отсутствие pystray/Pillow: run_desktop должен не падать и перейти на uvicorn.run
+    monkeypatch.delenv("SELAKCRM_TRAY", raising=False)
+
+    calls = {"uvicorn_run": 0}
+
+    class FakeUvicornModule:
+        @staticmethod
+        def run(*_args, **_kwargs):
+            calls["uvicorn_run"] += 1
+
+    monkeypatch.setitem(sys.modules, "uvicorn", FakeUvicornModule)
+
+    import importlib
+
+    real_import_module = importlib.import_module
+
+    def fake_import_module(name: str):
+        if name in {"pystray", "PIL.Image", "PIL.ImageDraw", "PIL.ImageFont"}:
+            raise ImportError("missing")
+        return real_import_module(name)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
+    run_desktop()
+    assert calls["uvicorn_run"] == 1

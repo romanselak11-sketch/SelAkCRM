@@ -71,6 +71,7 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
             "endDate": _iso(p.endDate),
             "companyName": p.company.name,
             "productName": p.product.name,
+            "insuredObject": p.insuredObject,
             "insuranceSumS": p.insuranceSumS,
         },
     }

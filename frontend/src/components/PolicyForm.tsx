@@ -5,6 +5,30 @@ import { useAuth } from '../auth';
 import { DateField } from './DateField';
 import { ScrollableChoiceList } from './ScrollableChoiceList';
 
+const moneyFieldFmt = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function sanitizeMoneyInput(raw: string): string {
+  return raw.replace(/[^\d.,\s]/g, '');
+}
+
+function normalizeMoneyForApi(raw: string): string {
+  const cleaned = sanitizeMoneyInput(raw).replace(/\s+/g, '').replace(',', '.');
+  if (!cleaned) return '';
+  const amount = Number(cleaned);
+  if (!Number.isFinite(amount)) return '';
+  return amount.toFixed(2);
+}
+
+function formatMoneyForField(raw: string | number | null | undefined): string {
+  if (raw === null || raw === undefined) return '';
+  const normalized = normalizeMoneyForApi(String(raw));
+  if (!normalized) return '';
+  return moneyFieldFmt.format(Number(normalized));
+}
+
 function defaultEndDateYmd(): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() + 1);
@@ -24,9 +48,11 @@ type PolicyDetail = {
   companyId: string;
   productId: string;
   number: string;
+  insuredObject?: string | null;
   insuranceSumS?: string | number | null;
   premiumPercent?: string | number | null;
   premiumRubles: string | number;
+  issueDate?: string | null;
   endDate: string;
 };
 
@@ -54,9 +80,11 @@ export function PolicyForm({
   const [companyId, setCompanyId] = useState('');
   const [productId, setProductId] = useState('');
   const [number, setNumber] = useState('');
+  const [insuredObject, setInsuredObject] = useState('');
   const [insuranceSumS, setInsuranceSumS] = useState('');
   const [premiumPercent, setPremiumPercent] = useState('');
   const [premiumRubles, setPremiumRubles] = useState('0');
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(defaultEndDateYmd);
   const [err, setErr] = useState<string | null>(null);
   const [refsErr, setRefsErr] = useState<string | null>(null);
@@ -116,27 +144,34 @@ export function PolicyForm({
   useEffect(() => {
     if (!policyId) return;
     let cancelled = false;
-    void api<PolicyDetail>(`/policies/${policyId}`).then((pol) => {
-      if (cancelled) return;
-      setClientId(pol.clientId);
-      setCompanyId(pol.companyId);
-      setProductId(pol.productId);
-      setNumber(pol.number);
-      setInsuranceSumS(
-        pol.insuranceSumS !== null && pol.insuranceSumS !== undefined && pol.insuranceSumS !== ''
-          ? String(pol.insuranceSumS)
-          : '',
-      );
-      setPremiumPercent(
-        pol.premiumPercent !== null &&
-          pol.premiumPercent !== undefined &&
-          pol.premiumPercent !== ''
-          ? String(pol.premiumPercent)
-          : '',
-      );
-      setPremiumRubles(String(pol.premiumRubles ?? '0'));
-      setEndDate(pol.endDate.slice(0, 10));
-    });
+    void api<PolicyDetail>(`/policies/${policyId}`)
+      .then((pol) => {
+        if (cancelled) return;
+        setClientId(pol.clientId);
+        setCompanyId(pol.companyId);
+        setProductId(pol.productId);
+        setNumber(pol.number);
+        setInsuredObject(pol.insuredObject ?? '');
+        setInsuranceSumS(
+          pol.insuranceSumS !== null && pol.insuranceSumS !== undefined && pol.insuranceSumS !== ''
+            ? formatMoneyForField(pol.insuranceSumS)
+            : '',
+        );
+        setPremiumPercent(
+          pol.premiumPercent !== null &&
+            pol.premiumPercent !== undefined &&
+            pol.premiumPercent !== ''
+            ? String(pol.premiumPercent)
+            : '',
+        );
+        setPremiumRubles(formatMoneyForField(pol.premiumRubles));
+        setIssueDate((pol.issueDate ?? pol.endDate).slice(0, 10));
+        setEndDate(pol.endDate.slice(0, 10));
+      })
+      .catch((ex) => {
+        if (cancelled) return;
+        setErr(ex instanceof ApiError ? ex.message : 'Не удалось загрузить полис');
+      });
     return () => {
       cancelled = true;
     };
@@ -182,9 +217,11 @@ export function PolicyForm({
       companyId,
       productId,
       number,
-      insuranceSumS: insuranceSumS || undefined,
+      insuredObject,
+      insuranceSumS: normalizeMoneyForApi(insuranceSumS) || undefined,
       premiumPercent: premiumPercent || undefined,
-      premiumRubles: premiumRubles || '0',
+      premiumRubles: normalizeMoneyForApi(premiumRubles) || '0.00',
+      issueDate,
       endDate,
     };
     try {
@@ -193,9 +230,11 @@ export function PolicyForm({
           method: 'PATCH',
           body: JSON.stringify({
             number,
-            insuranceSumS: insuranceSumS,
+            insuredObject,
+            insuranceSumS: normalizeMoneyForApi(insuranceSumS),
             premiumPercent,
-            premiumRubles: premiumRubles || '0',
+            premiumRubles: normalizeMoneyForApi(premiumRubles) || '0.00',
+            issueDate,
             endDate,
           }),
         });
@@ -227,6 +266,9 @@ export function PolicyForm({
           onChange={setClientId}
           options={clientOptions}
           placeholder="Выберите клиента"
+          searchable
+          searchPlaceholder="Введите имя клиента"
+          emptySearchText="Клиенты не найдены"
           disabled={clientLocked}
         />
       </label>
@@ -255,8 +297,18 @@ export function PolicyForm({
         <input value={number} onChange={(e) => setNumber(e.target.value)} required />
       </label>
       <label className="field">
+        <span className="field-label">Объект страхования</span>
+        <input value={insuredObject} onChange={(e) => setInsuredObject(e.target.value)} required />
+      </label>
+      <label className="field">
         <span className="field-label">Стоимость полиса</span>
-        <input value={insuranceSumS} onChange={(e) => setInsuranceSumS(e.target.value)} />
+        <input
+          value={insuranceSumS}
+          inputMode="decimal"
+          className="input-numeric-no-spin"
+          onChange={(e) => setInsuranceSumS(sanitizeMoneyInput(e.target.value))}
+          onBlur={() => setInsuranceSumS((v) => formatMoneyForField(v))}
+        />
       </label>
       <label className="field">
         <span className="field-label">Комиссия агента в %</span>
@@ -264,7 +316,17 @@ export function PolicyForm({
       </label>
       <label className="field">
         <span className="field-label">Дополнительная комиссия</span>
-        <input value={premiumRubles} onChange={(e) => setPremiumRubles(e.target.value)} />
+        <input
+          value={premiumRubles}
+          inputMode="decimal"
+          className="input-numeric-no-spin"
+          onChange={(e) => setPremiumRubles(sanitizeMoneyInput(e.target.value))}
+          onBlur={() => setPremiumRubles((v) => formatMoneyForField(v))}
+        />
+      </label>
+      <label className="field">
+        <span className="field-label">Дата оформления</span>
+        <DateField value={issueDate} onChange={setIssueDate} />
       </label>
       <label className="field">
         <span className="field-label">Дата окончания полиса</span>

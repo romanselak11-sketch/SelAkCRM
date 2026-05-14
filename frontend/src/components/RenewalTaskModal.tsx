@@ -29,6 +29,7 @@ export type RenewalTaskRow = {
     endDate: string;
     companyName: string;
     productName: string;
+    insuredObject?: string | null;
     insuranceSumS: string | null;
   };
   /** Заполняется при статусе «Отказ клиента». */
@@ -171,6 +172,9 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
             <p className="renewal-task-modal__line">
               <strong>Полис:</strong> {task.policy.number} · {task.policy.companyName} /{' '}
               {task.policy.productName}
+            </p>
+            <p className="renewal-task-modal__line">
+              <strong>Объект страхования:</strong> {task.policy.insuredObject?.trim() || '—'}
             </p>
             <p className="renewal-task-modal__line">
               <strong>До окончания:</strong> {untilLabel}

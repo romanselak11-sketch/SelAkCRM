@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 
 from selakcrm.database import get_db
@@ -57,9 +57,10 @@ def analytics_summary(
     prev_start = datetime(prev_start_day.year, prev_start_day.month, prev_start_day.day, 0, 0, 0)
 
     def agg_between(start: datetime, end: datetime) -> tuple[Decimal, int]:
+        policy_day = func.coalesce(Policy.issueDate, Policy.createdAt)
         rows = (
             db.query(Policy)
-            .filter(Policy.deletedAt.is_(None), Policy.createdAt >= start, Policy.createdAt <= end)
+            .filter(Policy.deletedAt.is_(None), policy_day >= start, policy_day <= end)
             .all()
         )
         s = sum((Decimal(str(p.agentIncomeD)) for p in rows), Decimal(0))
@@ -107,14 +108,14 @@ def analytics_daily(
     rows = db.execute(
         text(
             """
-            SELECT date("createdAt") AS day,
+            SELECT date(COALESCE("issueDate", "createdAt")) AS day,
                    CAST(COALESCE(SUM(CAST("agentIncomeD" AS REAL)), 0) AS TEXT) AS revenue,
                    CAST(COUNT(*) AS INTEGER) AS policies_count
             FROM "Policy"
             WHERE "deletedAt" IS NULL
-              AND "createdAt" >= :f
-              AND "createdAt" <= :t
-            GROUP BY date("createdAt")
+              AND COALESCE("issueDate", "createdAt") >= :f
+              AND COALESCE("issueDate", "createdAt") <= :t
+            GROUP BY date(COALESCE("issueDate", "createdAt"))
             ORDER BY 1
             """
         ),

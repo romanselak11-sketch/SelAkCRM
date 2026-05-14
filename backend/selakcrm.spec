@@ -10,6 +10,7 @@ frontend_dist = backend_dir.parent / "frontend" / "dist"
 datas = [
     (str(backend_dir / "alembic"), "alembic"),
     (str(backend_dir / "alembic.ini"), "."),
+    (str(backend_dir / "assets" / "selak.ico"), "assets"),
 ]
 if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
     datas.append((str(frontend_dist), "frontend_dist"))
@@ -22,6 +23,8 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
+        "selakcrm.main",
+        "pystray._win32",
         "uvicorn.lifespan.on",
         "uvicorn.lifespan.off",
         "uvicorn.protocols.http.auto",
@@ -52,13 +55,14 @@ exe = EXE(
     a.datas,
     [],
     name="SelakCRM",
+    icon=str(backend_dir / "assets" / "selak.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

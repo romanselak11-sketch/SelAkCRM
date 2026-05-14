@@ -12,6 +12,9 @@ type ScrollableChoiceListProps = {
   options: ScrollableChoiceOption[];
   placeholder: string;
   disabled?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptySearchText?: string;
   /** Показывать не больше стольких строк без прокрутки */
   visibleRows?: number;
 };
@@ -22,10 +25,15 @@ export function ScrollableChoiceList({
   options,
   placeholder,
   disabled,
+  searchable = false,
+  searchPlaceholder = 'Поиск…',
+  emptySearchText = 'Ничего не найдено',
   visibleRows = DEFAULT_VISIBLE_ROWS,
 }: ScrollableChoiceListProps) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const prevValueRef = useRef(value);
   const listId = useId();
 
   const selectedLabel = useMemo(() => {
@@ -34,6 +42,12 @@ export function ScrollableChoiceList({
   }, [value, options]);
 
   const listOpen = open && !disabled;
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase('ru-RU');
+
+  const filteredOptions = useMemo(() => {
+    if (!searchable || !normalizedQuery) return options;
+    return options.filter((o) => o.label.toLocaleLowerCase('ru-RU').includes(normalizedQuery));
+  }, [searchable, normalizedQuery, options]);
 
   useEffect(() => {
     if (!listOpen) return;
@@ -57,10 +71,23 @@ export function ScrollableChoiceList({
     return () => document.removeEventListener('keydown', onKey, true);
   }, [listOpen]);
 
+  useEffect(() => {
+    if (listOpen) return;
+    setSearchQuery('');
+  }, [listOpen]);
+
+  useEffect(() => {
+    // Закрываем только при реальном изменении value (после выбора опции или внешнего обновления).
+    if (prevValueRef.current === value) return;
+    prevValueRef.current = value;
+    setOpen(false);
+  }, [value]);
+
   const listMaxHeight = `min(${visibleRows * ROW_HEIGHT_REM}rem, 45vh)`;
 
   function pick(next: string) {
     onChange(next);
+    setSearchQuery('');
     setOpen(false);
   }
 
@@ -93,6 +120,19 @@ export function ScrollableChoiceList({
           role="listbox"
           style={{ maxHeight: listMaxHeight }}
         >
+          {searchable ? (
+            <li role="presentation" className="scrollable-choice__li scrollable-choice__li--search">
+              <input
+                type="text"
+                className="scrollable-choice__search"
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                autoComplete="off"
+              />
+            </li>
+          ) : null}
           <li role="presentation" className="scrollable-choice__li">
             <button
               type="button"
@@ -105,7 +145,7 @@ export function ScrollableChoiceList({
               {placeholder}
             </button>
           </li>
-          {options.map((o) => (
+          {filteredOptions.map((o) => (
             <li key={o.value} role="presentation" className="scrollable-choice__li">
               <button
                 type="button"
@@ -119,6 +159,11 @@ export function ScrollableChoiceList({
               </button>
             </li>
           ))}
+          {searchable && filteredOptions.length === 0 ? (
+            <li role="presentation" className="scrollable-choice__li">
+              <p className="scrollable-choice__empty">{emptySearchText}</p>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </div>

@@ -64,6 +64,7 @@ def _seed_policy_in_renewal_window(db, *, days_until_end: int = 15) -> Policy:
             companyId=comp_id,
             productId=prod_id,
             number="P-100",
+            insuredObject="Автомобиль",
             source="OFFICE",
             premiumRubles="0",
             agentIncomeD="0",

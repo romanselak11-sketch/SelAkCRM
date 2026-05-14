@@ -24,6 +24,8 @@ dev = [
 ]
 windows-exe = [
   "pyinstaller>=6.0.0",
+  "pystray>=0.19.5",
+  "Pillow>=10.4.0",
 ]
 
 [tool.pytest.ini_options]

@@ -215,7 +215,7 @@ def seed_demo_policies_90d(
             created_at = now_dt - timedelta(seconds=rng.randint(0, 3600))
 
         comp, prod = rng.choice(flat_products)
-        number = f"D90-{policy_offset + i + 1:010d}"
+        number = f"D{days}-{policy_offset + i + 1:010d}"
 
         client = rng.choice(clients)
 
@@ -252,6 +252,7 @@ def seed_demo_policies_90d(
             companyId=comp.id,
             productId=prod.id,
             number=number,
+            insuredObject=rng.choice(("Автомобиль", "Квартира", "Жизнь и здоровье", "Ипотечная недвижимость")),
             category=rng.choice((None, None, "Авто", "Имущество", "Здоровье")),
             source=src,
             insuranceSumS=ins_s,

@@ -160,13 +160,14 @@ export function HomePage() {
                 <th>Клиент</th>
                 <th>Телефон</th>
                 <th>Полис</th>
+                <th>Объект страхования</th>
                 <th>До окончания</th>
               </tr>
             </thead>
             <tbody>
               {tasks.length === 0 ? (
                 <tr className="data-table__empty-row">
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <p className="empty-hint empty-hint--in-cell">Нет активных задач.</p>
                   </td>
                 </tr>
@@ -196,8 +197,9 @@ export function HomePage() {
                     </td>
                     <td>{t.client.phone}</td>
                     <td>
-                      {t.policy.number} · {t.policy.companyName} / {t.policy.productName}
+                      {t.policy.companyName} / {t.policy.productName}
                     </td>
+                    <td>{t.policy.insuredObject?.trim() || '—'}</td>
                     <td>
                       {t.display.kind === 'days' ? `${t.display.value} дн.` : t.display.value}
                     </td>

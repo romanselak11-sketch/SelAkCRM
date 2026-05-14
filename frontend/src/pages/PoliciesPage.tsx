@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { ApiError, api } from '../api';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
 import { Modal } from '../components/Modal';
 import { PageHeading } from '../components/PageHeading';
 import { PolicyForm } from '../components/PolicyForm';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
+import { formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
 import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
 
 type Policy = {
@@ -24,6 +25,7 @@ export function PoliciesPage() {
   const [listLimit, setListLimit] = useState<ListPageSize>(10);
   const [createOpen, setCreateOpen] = useState(false);
   const [editPolicyId, setEditPolicyId] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const { searchInput, setSearchInput, debouncedQ } = useDebouncedSearchQuery(setListPage);
 
   useEffect(() => {
@@ -32,21 +34,35 @@ export function PoliciesPage() {
 
   useEffect(() => {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    void api<Paginated<Policy>>(`/policies?${q}`).then((res) => {
-      setRows(res.items);
-      setListTotal(res.total);
-      const totalPages = Math.max(1, Math.ceil(res.total / res.limit));
-      if (res.page > totalPages) {
-        setListPage(totalPages);
-      }
-    });
+    void api<Paginated<Policy>>(`/policies?${q}`)
+      .then((res) => {
+        setRows(res.items);
+        setListTotal(res.total);
+        setListError(null);
+        const totalPages = Math.max(1, Math.ceil(res.total / res.limit));
+        if (res.page > totalPages) {
+          setListPage(totalPages);
+        }
+      })
+      .catch((ex) => {
+        setRows([]);
+        setListTotal(0);
+        setListError(ex instanceof ApiError ? ex.message : 'Не удалось загрузить список полисов');
+      });
   }, [listPage, listLimit, debouncedQ]);
 
   async function load() {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    const res = await api<Paginated<Policy>>(`/policies?${q}`);
-    setRows(res.items);
-    setListTotal(res.total);
+    try {
+      const res = await api<Paginated<Policy>>(`/policies?${q}`);
+      setRows(res.items);
+      setListTotal(res.total);
+      setListError(null);
+    } catch (ex) {
+      setRows([]);
+      setListTotal(0);
+      setListError(ex instanceof ApiError ? ex.message : 'Не удалось загрузить список полисов');
+    }
   }
 
   return (
@@ -95,6 +111,11 @@ export function PoliciesPage() {
       </Modal>
 
       <section className="card">
+        {listError ? (
+          <p className="form-error" role="alert">
+            {listError}
+          </p>
+        ) : null}
         <div className="list-search-row">
           <input
             type="search"
@@ -137,10 +158,10 @@ export function PoliciesPage() {
                       {p.client.lastName} {p.client.firstName}
                     </td>
                     <td>{p.company.name}</td>
-                    <td>{p.endDate.slice(0, 10)}</td>
+                    <td>{formatIsoDateRu(p.endDate)}</td>
                     <td>
                       {p.insuranceSumS !== null && p.insuranceSumS !== undefined && p.insuranceSumS !== ''
-                        ? String(p.insuranceSumS)
+                        ? formatMoneyRu(p.insuranceSumS)
                         : '—'}
                     </td>
                     <td className="col--narrow" onClick={(e) => e.stopPropagation()}>

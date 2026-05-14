@@ -80,21 +80,25 @@ class CreatePolicyIn(StrictBody):
     companyId: str
     productId: str
     number: str = Field(min_length=1)
+    insuredObject: str = Field(min_length=1)
     category: str | None = None
     source: str | None = None
     insuranceSumS: str | None = None
     premiumPercent: str | None = None
     premiumRubles: str | None = None
+    issueDate: str | None = Field(default=None, min_length=10)
     endDate: str = Field(min_length=10)
 
 
 class UpdatePolicyIn(StrictBody):
     number: str | None = Field(default=None, min_length=1)
+    insuredObject: str | None = Field(default=None, min_length=1)
     category: str | None = None
     source: str | None = None
     insuranceSumS: str | None = None
     premiumPercent: str | None = None
     premiumRubles: str | None = None
+    issueDate: str | None = Field(default=None, min_length=10)
     endDate: str | None = Field(default=None, min_length=10)
 
 
@@ -123,6 +127,7 @@ def _create_policy_entity(
     agent_d = compute_agent_income_d(ins_s, pct, rub)
     end_date = calendar_date_from_ymd(dto.endDate)
     now = utcnow()
+    issue_date = calendar_date_from_ymd(dto.issueDate) if dto.issueDate else now
     src = dto.source or "OFFICE"
     p = Policy(
         id=new_cuid(),
@@ -130,12 +135,14 @@ def _create_policy_entity(
         companyId=dto.companyId,
         productId=dto.productId,
         number=dto.number,
+        insuredObject=dto.insuredObject,
         category=dto.category,
         source=src,
         insuranceSumS=ins_s if ins_s not in (None, "") else None,
         premiumPercent=pct if pct not in (None, "") else None,
         premiumRubles=rub or "0",
         agentIncomeD=str(agent_d.quantize(Decimal("0.01"))),
+        issueDate=issue_date,
         startDate=end_date,
         endDate=end_date,
         termDays=1,
@@ -276,10 +283,13 @@ def update_policy_route(
     agent_d = compute_agent_income_d(merged_ins, merged_pct, merged_rub)
 
     parsed_end = calendar_date_from_ymd(body.endDate) if body.endDate else None
+    parsed_issue = calendar_date_from_ymd(body.issueDate) if body.issueDate else None
     end_changed = parsed_end is not None and not same_calendar_day(parsed_end, p.endDate)
 
     if body.number is not None:
         p.number = body.number
+    if body.insuredObject is not None:
+        p.insuredObject = body.insuredObject
     if body.category is not None:
         p.category = body.category
     if body.source is not None:
@@ -290,6 +300,8 @@ def update_policy_route(
         p.premiumPercent = None if body.premiumPercent == "" else body.premiumPercent
     if body.premiumRubles is not None:
         p.premiumRubles = body.premiumRubles
+    if parsed_issue is not None:
+        p.issueDate = parsed_issue
     p.agentIncomeD = str(agent_d.quantize(Decimal("0.01")))
     if end_changed and parsed_end is not None:
         p.startDate = parsed_end

@@ -11,15 +11,21 @@ export function LoginPage() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState<boolean>(false);
 
   useEffect(() => {
     setDocumentTitle('Вход');
   }, []);
 
   useEffect(() => {
-    void api<{ needsSetup: boolean }>('/setup/status').then((s) => {
-      if (s.needsSetup) nav('/setup', { replace: true });
-    });
+    void api<{ needsSetup: boolean }>('/setup/status')
+      .then((s) => {
+        setNeedsSetup(s.needsSetup);
+        if (s.needsSetup) nav('/setup', { replace: true });
+      })
+      .catch(() => {
+        setNeedsSetup(false);
+      });
   }, [nav]);
 
   async function onSubmit(e: FormEvent) {
@@ -74,9 +80,11 @@ export function LoginPage() {
             </button>
           </div>
         </form>
-        <p style={{ marginTop: 'var(--space-5)', marginBottom: 0 }} className="empty-hint">
-          <Link to="/setup">Первичная настройка</Link>
-        </p>
+        {needsSetup ? (
+          <p style={{ marginTop: 'var(--space-5)', marginBottom: 0 }} className="empty-hint">
+            <Link to="/setup">Первичная настройка</Link>
+          </p>
+        ) : null}
       </div>
     </div>
   );

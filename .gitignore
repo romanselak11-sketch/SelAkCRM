@@ -5,6 +5,7 @@ frontend/node_modules/
 
 # Сборки и кэш
 backend/dist/
+backend/build/
 frontend/dist/
 **/__pycache__/
 *.py[cod]
@@ -12,6 +13,7 @@ frontend/dist/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+backend/*.pkg
 
 # IDE / ОС
 .DS_Store

@@ -64,11 +64,14 @@ const pctFmt = new Intl.NumberFormat('ru-RU', {
   signDisplay: 'exceptZero',
 });
 
-const moneyFmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+const moneyFmt = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 const revAxisFmt = new Intl.NumberFormat('ru-RU', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 function ymdToDdMmYyyy(ymd: string) {
@@ -373,7 +376,7 @@ function RevenueChart({ points }: { points: DailyPoint[] }) {
               tick={{ fill: 'var(--fg-muted)', fontSize: 11, fontWeight: 600 }}
               tickLine={false}
               axisLine={false}
-              width={56}
+              width={88}
             />
             <Tooltip
               cursor={{ fill: 'var(--accent-soft)', opacity: 0.4 }}

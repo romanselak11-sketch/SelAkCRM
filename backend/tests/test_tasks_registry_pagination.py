@@ -42,6 +42,7 @@ def test_tasks_registry_pagination(client):
                 "companyId": comp["id"],
                 "productId": product["id"],
                 "number": f"P-{i}",
+                "insuredObject": f"Авто {i}",
                 "premiumRubles": "1000",
                 "endDate": end_date,
             },
@@ -64,3 +65,4 @@ def test_tasks_registry_pagination(client):
     assert d2["limit"] == 10
     assert d2["total"] == 11
     assert len(d2["items"]) == 1
+    assert d2["items"][0]["policy"]["insuredObject"] == "Авто 0"

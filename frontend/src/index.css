@@ -1193,6 +1193,22 @@ label.field > span.field-label {
   padding: 0;
 }
 
+.scrollable-choice__li--search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-1);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.scrollable-choice__search {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.875rem;
+}
+
 .scrollable-choice__option {
   display: block;
   width: 100%;
@@ -1219,6 +1235,16 @@ label.field > span.field-label {
   background: var(--accent-soft);
   color: var(--fg);
   font-weight: 600;
+}
+
+.scrollable-choice__empty {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  min-height: 2.375rem;
+  display: flex;
+  align-items: center;
+  color: var(--fg-muted);
+  font-size: 0.875rem;
 }
 
 /* Кастомное поле даты (react-day-picker) */
@@ -1568,6 +1594,224 @@ label.field > span.field-label {
 .modal-body {
   padding: var(--space-5);
   overflow: auto;
+}
+
+.data-table__click-row {
+  cursor: pointer;
+}
+
+.data-table__click-row:hover {
+  background: var(--surface-2);
+}
+
+.data-table__click-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.client-details {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.client-details__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.client-details__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.client-details__subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.client-details__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.client-details__phones {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.client-details__label {
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.client-details__phone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.client-details__phone-item {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.9375rem;
+}
+
+.client-details__policies {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.client-details__policy-row {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.75rem 0.875rem;
+  display: grid;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.client-details__policy-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.client-details__policy-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.client-details__policy-number {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--fg);
+}
+
+.client-details__policy-open {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.client-details__policy-object {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  min-height: 1.1rem;
+}
+
+.client-details__policy-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.client-details__policy-meta-item {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.client-details__policy-meta-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.client-details__policy-meta-value {
+  font-size: 0.875rem;
+  color: var(--fg);
+}
+
+.client-details__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.client-details__pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.client-details__pagination-size select {
+  min-width: 4.25rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.client-details__pagination-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.client-details__pagination-meta {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  min-width: 5.5rem;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .client-details__policy-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+.policy-details {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.policy-details__grid {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.policy-details__row {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.policy-details__row dt {
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.policy-details__row dd {
+  margin: 0;
+  font-size: 0.9375rem;
 }
 
 /* Legacy helpers */

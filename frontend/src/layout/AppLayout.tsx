@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { setDocumentTitle } from '../utils/documentTitle';
@@ -171,7 +171,6 @@ export function AppLayout() {
     return <Navigate to="/" replace />;
   }
 
-  const isManager = me.role === 'MANAGER';
   const showOps = me.role === 'SUPER_ADMIN' || me.role === 'SUPER_MANAGER';
   const showAnalytics = me.role === 'SUPER_ADMIN';
   const showAdminSettings = me.role === 'SUPER_ADMIN';
@@ -185,96 +184,80 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
-      {!isManager && (
-        <aside className={sidebarCollapsed ? 'sidebar sidebar--collapsed' : 'sidebar'}>
-          <div className="sidebar-brand">
-            <div className="sidebar-brand-top">
-              <div className="sidebar-brand-copy">
-                {sidebarCollapsed ? (
-                  <>
-                    <span className="sidebar-brand-compact" aria-hidden>
-                      S
-                    </span>
-                    <span className="visually-hidden">SelAkCRM, Страховой учёт</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="sidebar-brand-mark">SelAkCRM</span>
-                    <span className="sidebar-brand-tag">Страховой учёт</span>
-                  </>
-                )}
-              </div>
-              <button
-                type="button"
-                className="sidebar-toggle"
-                aria-expanded={!sidebarCollapsed}
-                aria-controls="app-sidebar-nav"
-                aria-label={sidebarCollapsed ? 'Развернуть боковое меню' : 'Свернуть боковое меню'}
-                title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
-                onClick={() => setSidebarCollapsed((c) => !c)}
-              >
-                <SidebarPrimaryBarIcon />
-              </button>
+      <aside className={sidebarCollapsed ? 'sidebar sidebar--collapsed' : 'sidebar'}>
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-top">
+            <div className="sidebar-brand-copy">
+              {sidebarCollapsed ? (
+                <>
+                  <span className="sidebar-brand-compact" aria-hidden>
+                    S
+                  </span>
+                  <span className="visually-hidden">SelAkCRM, Страховой учёт</span>
+                </>
+              ) : (
+                <>
+                  <span className="sidebar-brand-mark">SelAkCRM</span>
+                  <span className="sidebar-brand-tag">Страховой учёт</span>
+                </>
+              )}
             </div>
+            <button
+              type="button"
+              className="sidebar-toggle"
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="app-sidebar-nav"
+              aria-label={sidebarCollapsed ? 'Развернуть боковое меню' : 'Свернуть боковое меню'}
+              title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
+              onClick={() => setSidebarCollapsed((c) => !c)}
+            >
+              <SidebarPrimaryBarIcon />
+            </button>
           </div>
-          <nav id="app-sidebar-nav" className="sidebar-nav" aria-label="Основное меню">
-            <NavLink to="/" end title={sidebarCollapsed ? 'Главная' : undefined}>
-              <NavIcon name="home" />
-              <span className="sidebar-nav-label">Главная</span>
-            </NavLink>
-            <NavLink to="/tasks" title={sidebarCollapsed ? 'Задачи' : undefined}>
-              <NavIcon name="tasks" />
-              <span className="sidebar-nav-label">Задачи</span>
-            </NavLink>
-            {showOps && (
-              <>
-                <NavLink to="/companies" title={sidebarCollapsed ? 'Компании' : undefined}>
-                  <NavIcon name="building" />
-                  <span className="sidebar-nav-label">Компании</span>
-                </NavLink>
-                <NavLink to="/clients" title={sidebarCollapsed ? 'Клиенты' : undefined}>
-                  <NavIcon name="users" />
-                  <span className="sidebar-nav-label">Клиенты</span>
-                </NavLink>
-                <NavLink to="/policies" title={sidebarCollapsed ? 'Полисы' : undefined}>
-                  <NavIcon name="file" />
-                  <span className="sidebar-nav-label">Полисы</span>
-                </NavLink>
-              </>
-            )}
-            {showAnalytics && (
-              <NavLink to="/analytics" title={sidebarCollapsed ? 'Аналитика' : undefined}>
-                <NavIcon name="chart" />
-                <span className="sidebar-nav-label">Аналитика</span>
+        </div>
+        <nav id="app-sidebar-nav" className="sidebar-nav" aria-label="Основное меню">
+          <NavLink to="/" end title={sidebarCollapsed ? 'Главная' : undefined}>
+            <NavIcon name="home" />
+            <span className="sidebar-nav-label">Главная</span>
+          </NavLink>
+          <NavLink to="/tasks" title={sidebarCollapsed ? 'Задачи' : undefined}>
+            <NavIcon name="tasks" />
+            <span className="sidebar-nav-label">Задачи</span>
+          </NavLink>
+          {showOps && (
+            <>
+              <NavLink to="/companies" title={sidebarCollapsed ? 'Компании' : undefined}>
+                <NavIcon name="building" />
+                <span className="sidebar-nav-label">Компании</span>
               </NavLink>
-            )}
-            {(showAdminSettings || me.role === 'SUPER_MANAGER') && (
-              <NavLink to="/settings" title={sidebarCollapsed ? 'Настройки' : undefined}>
-                <NavIcon name="gear" />
-                <span className="sidebar-nav-label">Настройки</span>
+              <NavLink to="/clients" title={sidebarCollapsed ? 'Клиенты' : undefined}>
+                <NavIcon name="users" />
+                <span className="sidebar-nav-label">Клиенты</span>
               </NavLink>
-            )}
-          </nav>
-        </aside>
-      )}
+              <NavLink to="/policies" title={sidebarCollapsed ? 'Полисы' : undefined}>
+                <NavIcon name="file" />
+                <span className="sidebar-nav-label">Полисы</span>
+              </NavLink>
+            </>
+          )}
+          {showAnalytics && (
+            <NavLink to="/analytics" title={sidebarCollapsed ? 'Аналитика' : undefined}>
+              <NavIcon name="chart" />
+              <span className="sidebar-nav-label">Аналитика</span>
+            </NavLink>
+          )}
+          {(showAdminSettings || me.role === 'SUPER_MANAGER') && (
+            <NavLink to="/settings" title={sidebarCollapsed ? 'Настройки' : undefined}>
+              <NavIcon name="gear" />
+              <span className="sidebar-nav-label">Настройки</span>
+            </NavLink>
+          )}
+        </nav>
+      </aside>
       <div className="app-main-col">
         <header className="topbar">
           <span className="topbar-title">{sectionTitle(loc.pathname)}</span>
           <div className="topbar-actions">
-            {isManager && (
-              <nav className="topbar-manager-nav" aria-label="Разделы">
-                <Link to="/" className={loc.pathname === '/' ? 'topbar-manager-nav__link is-active' : 'topbar-manager-nav__link'}>
-                  Главная
-                </Link>
-                <Link
-                  to="/tasks"
-                  className={loc.pathname === '/tasks' ? 'topbar-manager-nav__link is-active' : 'topbar-manager-nav__link'}
-                >
-                  Задачи
-                </Link>
-                <span className="topbar-brand">SelAkCRM</span>
-              </nav>
-            )}
             <div className="topbar-user">
               <span className="badge">{me.login}</span>
             </div>

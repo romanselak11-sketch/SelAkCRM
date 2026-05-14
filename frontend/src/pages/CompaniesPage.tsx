@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api } from '../api';
+import { ApiError, api } from '../api';
+import { useAuth } from '../auth';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
@@ -26,6 +27,8 @@ function formatProductPct(v: string | number | null | undefined): string | null 
 }
 
 export function CompaniesPage() {
+  const { me } = useAuth();
+  const canEditInsurance = me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER';
   const [rows, setRows] = useState<Company[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [listPage, setListPage] = useState(1);
@@ -40,6 +43,8 @@ export function CompaniesPage() {
   const [companyEditName, setCompanyEditName] = useState('');
   const [companySaving, setCompanySaving] = useState(false);
   const [archiveCompanyId, setArchiveCompanyId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const { searchInput, setSearchInput, debouncedQ } = useDebouncedSearchQuery(setListPage);
 
   useEffect(() => {
@@ -52,21 +57,35 @@ export function CompaniesPage() {
 
   useEffect(() => {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    void api<Paginated<Company>>(`/insurance-companies?${q}`).then((res) => {
-      setRows(res.items);
-      setListTotal(res.total);
-      const totalPages = Math.max(1, Math.ceil(res.total / res.limit));
-      if (res.page > totalPages) {
-        setListPage(totalPages);
-      }
-    });
+    void api<Paginated<Company>>(`/insurance-companies?${q}`)
+      .then((res) => {
+        setRows(res.items);
+        setListTotal(res.total);
+        setListError(null);
+        const totalPages = Math.max(1, Math.ceil(res.total / res.limit));
+        if (res.page > totalPages) {
+          setListPage(totalPages);
+        }
+      })
+      .catch((ex) => {
+        setRows([]);
+        setListTotal(0);
+        setListError(ex instanceof ApiError ? ex.message : 'Не удалось загрузить компании');
+      });
   }, [listPage, listLimit, debouncedQ]);
 
   async function load() {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    const res = await api<Paginated<Company>>(`/insurance-companies?${q}`);
-    setRows(res.items);
-    setListTotal(res.total);
+    try {
+      const res = await api<Paginated<Company>>(`/insurance-companies?${q}`);
+      setRows(res.items);
+      setListTotal(res.total);
+      setListError(null);
+    } catch (ex) {
+      setRows([]);
+      setListTotal(0);
+      setListError(ex instanceof ApiError ? ex.message : 'Не удалось загрузить компании');
+    }
   }
 
   useEffect(() => {
@@ -76,25 +95,47 @@ export function CompaniesPage() {
     }
     void api<ProductRow[]>(`/insurance-companies/${selectedCompany.id}/products`).then(
       setCompanyProducts,
+      (ex) => {
+        setCompanyProducts([]);
+        setFormError(ex instanceof ApiError ? ex.message : 'Не удалось загрузить продукты компании');
+      },
     );
   }, [selectedCompany]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    await api('/insurance-companies', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
-    setName('');
-    setModalOpen(false);
-    void load();
+    if (!canEditInsurance) {
+      setFormError('Недостаточно прав для изменения справочника компаний');
+      return;
+    }
+    try {
+      setFormError(null);
+      await api('/insurance-companies', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      setName('');
+      setModalOpen(false);
+      void load();
+    } catch (ex) {
+      setFormError(ex instanceof ApiError ? ex.message : 'Не удалось создать компанию');
+    }
   }
 
   async function confirmArchiveCompany() {
     if (!archiveCompanyId) return;
-    await api(`/insurance-companies/${archiveCompanyId}/archive`, { method: 'POST' });
-    setArchiveCompanyId(null);
-    void load();
+    if (!canEditInsurance) {
+      setFormError('Недостаточно прав для изменения справочника компаний');
+      return;
+    }
+    try {
+      setFormError(null);
+      await api(`/insurance-companies/${archiveCompanyId}/archive`, { method: 'POST' });
+      setArchiveCompanyId(null);
+      void load();
+    } catch (ex) {
+      setFormError(ex instanceof ApiError ? ex.message : 'Не удалось отправить компанию в архив');
+    }
   }
 
   function resetProductForm() {
@@ -121,44 +162,60 @@ export function CompaniesPage() {
   async function onProductFormSubmit(e: FormEvent) {
     e.preventDefault();
     if (!selectedCompany) return;
+    if (!canEditInsurance) {
+      setFormError('Недостаточно прав для изменения продуктов');
+      return;
+    }
     const pctStr = productPremiumPct.trim();
     const pctParsed = pctStr === '' ? null : Number(pctStr.replace(',', '.'));
     if (pctStr !== '' && Number.isNaN(pctParsed)) return;
+    const pctPayload = pctStr === '' ? null : String(pctParsed);
 
-    if (editingProductId) {
-      await api(`/insurance-products/${editingProductId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: productName,
-          defaultPremiumPct: pctStr === '' ? null : pctParsed,
-        }),
-      });
-    } else {
-      await api(`/insurance-companies/${selectedCompany.id}/products`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: productName,
-          ...(pctParsed != null && !Number.isNaN(pctParsed) && { defaultPremiumPct: pctParsed }),
-        }),
-      });
+    try {
+      setFormError(null);
+      if (editingProductId) {
+        await api(`/insurance-products/${editingProductId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: productName,
+            defaultPremiumPct: pctPayload,
+          }),
+        });
+      } else {
+        await api(`/insurance-companies/${selectedCompany.id}/products`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: productName,
+            ...(pctPayload !== null && { defaultPremiumPct: pctPayload }),
+          }),
+        });
+      }
+      resetProductForm();
+      void refreshCompanyProducts();
+    } catch (ex) {
+      setFormError(ex instanceof ApiError ? ex.message : 'Не удалось сохранить продукт');
     }
-    resetProductForm();
-    void refreshCompanyProducts();
   }
 
   function closeProductsModal() {
     setSelectedCompany(null);
     resetProductForm();
     setCompanyEditName('');
+    setFormError(null);
   }
 
   async function onSaveCompanyName(e: FormEvent) {
     e.preventDefault();
     if (!selectedCompany) return;
+    if (!canEditInsurance) {
+      setFormError('Недостаточно прав для изменения справочника компаний');
+      return;
+    }
     const next = companyEditName.trim();
     if (!next || next === selectedCompany.name.trim()) return;
     setCompanySaving(true);
     try {
+      setFormError(null);
       const updated = await api<{ id: string; name: string }>(`/insurance-companies/${selectedCompany.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ name: next }),
@@ -167,6 +224,8 @@ export function CompaniesPage() {
         prev && prev.id === selectedCompany.id ? { ...prev, name: updated.name } : prev,
       );
       void load();
+    } catch (ex) {
+      setFormError(ex instanceof ApiError ? ex.message : 'Не удалось обновить название компании');
     } finally {
       setCompanySaving(false);
     }
@@ -177,16 +236,19 @@ export function CompaniesPage() {
       <header className="page-header">
         <PageHeading title="Страховые компании" hint="Справочник партнёров и продуктов" />
         <div className="page-actions">
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => {
-              setName('');
-              setModalOpen(true);
-            }}
-          >
-            Новая компания
-          </button>
+          {canEditInsurance ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => {
+                setName('');
+                setFormError(null);
+                setModalOpen(true);
+              }}
+            >
+              Новая компания
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -226,6 +288,11 @@ export function CompaniesPage() {
             </button>
           </div>
         </form>
+        {formError ? (
+          <p className="form-error" role="alert">
+            {formError}
+          </p>
+        ) : null}
       </Modal>
 
       <Modal
@@ -250,19 +317,21 @@ export function CompaniesPage() {
               required
             />
           </label>
-          <div className="form-actions">
-            <button
-              type="submit"
-              className="btn btn--primary"
-              disabled={
-                companySaving ||
-                !companyEditName.trim() ||
-                companyEditName.trim() === selectedCompany?.name.trim()
-              }
-            >
-              {companySaving ? 'Сохранение…' : 'Сохранить название'}
-            </button>
-          </div>
+          {canEditInsurance ? (
+            <div className="form-actions">
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={
+                  companySaving ||
+                  !companyEditName.trim() ||
+                  companyEditName.trim() === selectedCompany?.name.trim()
+                }
+              >
+                {companySaving ? 'Сохранение…' : 'Сохранить название'}
+              </button>
+            </div>
+          ) : null}
         </form>
 
         {companyProducts.length === 0 ? (
@@ -303,60 +372,80 @@ export function CompaniesPage() {
                     </span>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => startEditProduct(p)}
-                >
-                  Изменить
-                </button>
+                {canEditInsurance ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => startEditProduct(p)}
+                  >
+                    Изменить
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
-        <form
-          onSubmit={(ev) => void onProductFormSubmit(ev)}
-          className="form-grid"
-          style={{ gridTemplateColumns: '1fr' }}
-        >
-          <label className="field">
-            <span className="field-label">{editingProductId ? 'Название' : 'Новый продукт'}</span>
-            <input
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder="Например, ОСАГО"
-              required
-            />
-          </label>
-          <label className="field">
-            <span className="field-label">Комиссия агента в %</span>
-            <input
-              value={productPremiumPct}
-              onChange={(e) => setProductPremiumPct(e.target.value)}
-              placeholder="Например, 12.5"
-              inputMode="decimal"
-              min={0}
-              max={100}
-              step="0.01"
-            />
-          </label>
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit">
-              {editingProductId ? 'Сохранить' : 'Добавить продукт'}
-            </button>
-            {editingProductId ? (
-              <button type="button" className="btn btn--ghost" onClick={resetProductForm}>
-                Отменить редактирование
+        {canEditInsurance ? (
+          <form
+            onSubmit={(ev) => void onProductFormSubmit(ev)}
+            className="form-grid"
+            style={{ gridTemplateColumns: '1fr' }}
+          >
+            <label className="field">
+              <span className="field-label">{editingProductId ? 'Название' : 'Новый продукт'}</span>
+              <input
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder="Например, ОСАГО"
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Комиссия агента в %</span>
+              <input
+                value={productPremiumPct}
+                onChange={(e) => setProductPremiumPct(e.target.value)}
+                placeholder="Например, 12.5"
+                inputMode="decimal"
+                min={0}
+                max={100}
+                step="0.01"
+              />
+            </label>
+            <div className="form-actions">
+              <button className="btn btn--primary" type="submit">
+                {editingProductId ? 'Сохранить' : 'Добавить продукт'}
               </button>
-            ) : null}
+              {editingProductId ? (
+                <button type="button" className="btn btn--ghost" onClick={resetProductForm}>
+                  Отменить редактирование
+                </button>
+              ) : null}
+              <button type="button" className="btn btn--ghost" onClick={closeProductsModal}>
+                Закрыть
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="form-actions">
             <button type="button" className="btn btn--ghost" onClick={closeProductsModal}>
               Закрыть
             </button>
           </div>
-        </form>
+        )}
+        {formError ? (
+          <p className="form-error" role="alert">
+            {formError}
+          </p>
+        ) : null}
       </Modal>
 
       <section className="card">
+        {listError ? (
+          <p className="form-error" role="alert">
+            {listError}
+          </p>
+        ) : null}
         <div className="card-header">
           <h2 className="card-title">Каталог</h2>
         </div>
@@ -397,13 +486,15 @@ export function CompaniesPage() {
                   >
                     <td>{c.name}</td>
                     <td className="col--narrow" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="btn btn--danger-soft btn--sm"
-                        onClick={() => setArchiveCompanyId(c.id)}
-                      >
-                        В архив
-                      </button>
+                      {canEditInsurance ? (
+                        <button
+                          type="button"
+                          className="btn btn--danger-soft btn--sm"
+                          onClick={() => setArchiveCompanyId(c.id)}
+                        >
+                          В архив
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))
