@@ -8,6 +8,7 @@ import { Modal } from '../components/Modal';
 import { PageHeading } from '../components/PageHeading';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
+import { ValidatedInput } from '../components/ValidatedInput';
 import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
 
 type Company = {
@@ -272,9 +273,10 @@ export function CompaniesPage() {
         <form onSubmit={onCreate} className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
           <label className="field">
             <span className="field-label">Название</span>
-            <input
+            <ValidatedInput
+              kind="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={setName}
               placeholder="Например, АО «Ромашка»"
               required
             />
@@ -309,9 +311,10 @@ export function CompaniesPage() {
         >
           <label className="field">
             <span className="field-label">Название компании</span>
-            <input
+            <ValidatedInput
+              kind="text"
               value={companyEditName}
-              onChange={(e) => setCompanyEditName(e.target.value)}
+              onChange={setCompanyEditName}
               placeholder="Например, АО «Ромашка»"
               minLength={1}
               required
@@ -393,23 +396,21 @@ export function CompaniesPage() {
           >
             <label className="field">
               <span className="field-label">{editingProductId ? 'Название' : 'Новый продукт'}</span>
-              <input
+              <ValidatedInput
+                kind="text"
                 value={productName}
-                onChange={(e) => setProductName(e.target.value)}
+                onChange={setProductName}
                 placeholder="Например, ОСАГО"
                 required
               />
             </label>
             <label className="field">
               <span className="field-label">Комиссия агента в %</span>
-              <input
+              <ValidatedInput
+                kind="decimal"
                 value={productPremiumPct}
-                onChange={(e) => setProductPremiumPct(e.target.value)}
+                onChange={setProductPremiumPct}
                 placeholder="Например, 12.5"
-                inputMode="decimal"
-                min={0}
-                max={100}
-                step="0.01"
               />
             </label>
             <div className="form-actions">

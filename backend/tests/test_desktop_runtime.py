@@ -1,9 +1,43 @@
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
 from selakcrm.desktop_runtime import apply_desktop_environment_if_frozen, resolve_user_data_dir, run_desktop
+
+
+def test_frozen_alembic_upgrade_head(monkeypatch, tmp_path):
+    """Как при первом запуске exe: миграции из _MEIPASS на чистой SQLite."""
+    import shutil
+    import sys
+    from alembic import command
+    from alembic.config import Config
+
+    backend = Path(__file__).resolve().parent.parent
+    meipass = tmp_path / "meipass"
+    meipass.mkdir()
+    shutil.copytree(backend / "alembic", meipass / "alembic")
+    shutil.copy(backend / "alembic.ini", meipass / "alembic.ini")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(meipass), raising=False)
+    db_path = tmp_path / "probe.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
+
+    command.upgrade(Config(str(meipass / "alembic.ini")), "head")
+    assert _has_column_sqlite(db_path, "RenewalTask", "renewedPolicyId")
+
+
+def _has_column_sqlite(db_path: Path, table: str, column: str) -> bool:
+    import sqlite3
+
+    con = sqlite3.connect(db_path)
+    try:
+        rows = con.execute(f'PRAGMA table_info("{table}")').fetchall()
+    finally:
+        con.close()
+    return any(r[1] == column for r in rows)
 
 
 def test_resolve_user_data_dir_exists(monkeypatch, tmp_path):

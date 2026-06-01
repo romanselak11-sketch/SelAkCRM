@@ -1,9 +1,18 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { type Matcher, DayPicker } from 'react-day-picker';
 import { ru } from 'date-fns/locale/ru';
 import 'react-day-picker/style.css';
-import { parseLocalYMD, toLocalYMD } from '../utils/localDate';
+import {
+  formatLocalDateRuLong,
+  isLocalDateWithinBounds,
+  localYmdToDotted,
+  parseManualDateInput,
+  parseLocalYMD,
+  sanitizeManualDateInput,
+  toLocalYMD,
+} from '../utils/localDate';
+import { FieldRejectBubble } from './FieldRejectBubble';
 
 type DateFieldProps = {
   value: string;
@@ -16,7 +25,13 @@ type DateFieldProps = {
   /** Показать кнопку «Очистить» */
   allowClear?: boolean;
   placeholder?: string;
+  id?: string;
 };
+
+const REJECT_CHARS =
+  'Допустимы цифры, точка и запятая. Форматы: ДД.ММ.ГГГГ, ДДММГГГГ, ДД,ММ,ГГГГ';
+const REJECT_SHOW_MS = 2400;
+const REJECT_THROTTLE_MS = 700;
 
 export function DateField({
   value,
@@ -26,16 +41,47 @@ export function DateField({
   max,
   allowClear = false,
   placeholder = 'Выберите дату',
+  id: idProp,
 }: DateFieldProps) {
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState('');
   const [month, setMonth] = useState<Date>(() => parseLocalYMD(value) ?? new Date());
+  const [rejectVisible, setRejectVisible] = useState(false);
+  const [rejectMessage, setRejectMessage] = useState('');
   const popoverOpen = open && !disabled;
   const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const autoId = useId();
+  const fieldId = idProp ?? autoId;
+  const rejectId = `${fieldId}-reject`;
+  const hideRejectTimerRef = useRef<number | null>(null);
+  const lastRejectRef = useRef(0);
+  const selectAllOnFocusRef = useRef(false);
 
   const selected = parseLocalYMD(value);
+
+  const showReject = useCallback((message: string) => {
+    const now = Date.now();
+    if (now - lastRejectRef.current < REJECT_THROTTLE_MS) return;
+    lastRejectRef.current = now;
+    setRejectMessage(message);
+    setRejectVisible(true);
+    if (hideRejectTimerRef.current !== null) window.clearTimeout(hideRejectTimerRef.current);
+    hideRejectTimerRef.current = window.setTimeout(() => {
+      hideRejectTimerRef.current = null;
+      setRejectVisible(false);
+    }, REJECT_SHOW_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (hideRejectTimerRef.current !== null) window.clearTimeout(hideRejectTimerRef.current);
+    },
+    [],
+  );
 
   const disabledMatchers = useMemo((): Matcher[] | undefined => {
     const out: Matcher[] = [];
@@ -46,14 +92,44 @@ export function DateField({
     return out.length ? out : undefined;
   }, [min, max]);
 
+  const commitDraft = useCallback((): boolean => {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      if (allowClear) onChange('');
+      return true;
+    }
+
+    const parsed = parseManualDateInput(trimmed);
+    if (!parsed) {
+      setDraft(selected ? localYmdToDotted(value) : '');
+      return false;
+    }
+    if (!isLocalDateWithinBounds(parsed, min, max)) {
+      setDraft(selected ? localYmdToDotted(value) : '');
+      return false;
+    }
+
+    onChange(toLocalYMD(parsed));
+    setMonth(parsed);
+    return true;
+  }, [allowClear, draft, max, min, onChange, selected, value]);
+
+  useLayoutEffect(() => {
+    if (!selectAllOnFocusRef.current || !focused) return;
+    selectAllOnFocusRef.current = false;
+    const el = inputRef.current;
+    if (!el) return;
+    el.setSelectionRange(0, el.value.length);
+  }, [focused, draft]);
+
   useLayoutEffect(() => {
     if (!popoverOpen) return;
-    const trigger = triggerRef.current;
+    const trigger = inputRef.current;
     const panel = popoverRef.current;
     if (!trigger || !panel) return;
 
     const place = () => {
-      const tr = triggerRef.current;
+      const tr = inputRef.current;
       const p = popoverRef.current;
       if (!tr || !p) return;
       const rect = tr.getBoundingClientRect();
@@ -117,13 +193,20 @@ export function DateField({
     return () => document.removeEventListener('keydown', onKey, true);
   }, [popoverOpen]);
 
-  const labelText = selected
-    ? selected.toLocaleDateString('ru-RU', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-    : '';
+  const displayValue = focused
+    ? draft
+    : selected
+      ? formatLocalDateRuLong(selected)
+      : '';
+
+  const openCalendar = () => {
+    if (disabled) return;
+    setOpen((o) => {
+      const next = !o;
+      if (next) setMonth(parseLocalYMD(value) ?? new Date());
+      return next;
+    });
+  };
 
   const popover =
     popoverOpen ? (
@@ -136,7 +219,9 @@ export function DateField({
           onSelect={(d) => {
             if (d) {
               onChange(toLocalYMD(d));
+              setMonth(d);
               setOpen(false);
+              setFocused(false);
             }
           }}
           locale={ru}
@@ -154,7 +239,9 @@ export function DateField({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 onChange('');
+                setDraft('');
                 setOpen(false);
+                setFocused(false);
               }}
             >
               Очистить
@@ -171,6 +258,7 @@ export function DateField({
               onChange(toLocalYMD(t));
               setMonth(t);
               setOpen(false);
+              setFocused(false);
             }}
           >
             Сегодня
@@ -181,32 +269,75 @@ export function DateField({
 
   return (
     <div className={`date-field${disabled ? ' date-field--disabled' : ''}`} ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="date-field__trigger"
-        disabled={disabled}
-        aria-haspopup="dialog"
-        aria-expanded={popoverOpen}
-        aria-controls={popoverOpen ? listId : undefined}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((o) => {
-            const next = !o;
-            if (next) setMonth(parseLocalYMD(value) ?? new Date());
-            return next;
-          });
-        }}
-      >
-        <span className="date-field__trigger-text">
-          {labelText ? (
-            <span className="date-field__value">{labelText}</span>
-          ) : (
-            <span className="date-field__placeholder">{placeholder}</span>
-          )}
-        </span>
-        <span className="date-field__icon" aria-hidden />
-      </button>
+      <div className="field-input-wrap">
+        <FieldRejectBubble id={rejectId} message={rejectMessage} visible={rejectVisible} />
+        <div className="date-field__control">
+          <input
+            ref={inputRef}
+            id={fieldId}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
+            disabled={disabled}
+            className={[
+              'date-field__input',
+              !focused && selected ? 'date-field__input--filled' : null,
+              !focused && !selected ? 'date-field__input--placeholder' : null,
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            value={displayValue}
+            placeholder={placeholder}
+            aria-haspopup="dialog"
+            aria-expanded={popoverOpen}
+            aria-controls={popoverOpen ? listId : undefined}
+            aria-describedby={rejectVisible ? rejectId : undefined}
+            aria-invalid={rejectVisible || undefined}
+            onFocus={() => {
+              if (disabled) return;
+              setFocused(true);
+              setDraft(selected ? localYmdToDotted(value) : '');
+              setRejectVisible(false);
+              selectAllOnFocusRef.current = true;
+            }}
+            onChange={(e) => {
+              const next = sanitizeManualDateInput(e.target.value);
+              if (next !== e.target.value) showReject(REJECT_CHARS);
+              setDraft(next);
+            }}
+            onBlur={() => {
+              if (popoverOpen) return;
+              commitDraft();
+              setFocused(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (commitDraft()) {
+                  inputRef.current?.blur();
+                  setFocused(false);
+                }
+              }
+              if (e.key === 'ArrowDown' && !popoverOpen) {
+                e.preventDefault();
+                openCalendar();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="date-field__calendar-btn"
+            disabled={disabled}
+            tabIndex={-1}
+            aria-label="Открыть календарь"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={openCalendar}
+          >
+            <span className="date-field__icon" aria-hidden />
+          </button>
+        </div>
+      </div>
       {popover ? createPortal(popover, document.body) : null}
     </div>
   );

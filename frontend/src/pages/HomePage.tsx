@@ -34,7 +34,8 @@ export function HomePage() {
   const [policyDialog, setPolicyDialog] = useState<PolicyDialog>(null);
   const [selectedTask, setSelectedTask] = useState<RenewalTaskRow | null>(null);
   const toastScheduledRef = useRef(new Set<string>());
-  const toastTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  /** В браузере setTimeout возвращает number; не используем NodeJS.Timeout. */
+  const toastTimersRef = useRef(new Map<string, number>());
   const toastItemsRef = useRef(toastItems);
   toastItemsRef.current = toastItems;
 
@@ -65,7 +66,7 @@ export function HomePage() {
 
   useEffect(() => {
     return () => {
-      toastTimersRef.current.forEach((t) => clearTimeout(t));
+      toastTimersRef.current.forEach((t) => window.clearTimeout(t));
       toastTimersRef.current.clear();
       toastItemsRef.current.forEach(({ id }) => {
         void api(`/home/notifications/${id}/ack`, { method: 'POST' });

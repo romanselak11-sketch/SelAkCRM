@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'selak_token';
+export type { Me, UserRole } from './api.types';
 
 /** Пусто в dev: запросы на тот же origin, Vite проксирует `/api` на бэкенд. Для продакшена: полный URL API без завершающего слэша. */
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -11,15 +12,6 @@ export function setToken(t: string | null) {
   if (t) sessionStorage.setItem(TOKEN_KEY, t);
   else sessionStorage.removeItem(TOKEN_KEY);
 }
-
-export type UserRole = 'SUPER_ADMIN' | 'SUPER_MANAGER' | 'MANAGER';
-
-export type Me = {
-  id: string;
-  login: string;
-  role: UserRole;
-  theme: 'light' | 'dark';
-};
 
 export class ApiError extends Error {
   status: number;

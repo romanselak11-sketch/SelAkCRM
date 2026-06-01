@@ -5,6 +5,8 @@ import { useAuth } from '../auth';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
 import { Modal } from '../components/Modal';
 import { PageHeading } from '../components/PageHeading';
+import { FieldHint } from '../components/FieldHint';
+import { ValidatedInput } from '../components/ValidatedInput';
 import { setDocumentTitle } from '../utils/documentTitle';
 import type { ListPageSize, Paginated } from '../utils/listPagination';
 
@@ -219,7 +221,7 @@ export function SettingsPage() {
         <form className="form-grid" onSubmit={addUser}>
           <label className="field">
             <span className="field-label">Логин</span>
-            <input placeholder="login" value={login} onChange={(e) => setLogin(e.target.value)} required />
+            <ValidatedInput kind="login" placeholder="login" value={login} onChange={setLogin} required />
           </label>
           <label className="field">
             <span className="field-label">Пароль</span>
@@ -230,6 +232,7 @@ export function SettingsPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <FieldHint>Любые символы, не короче 10</FieldHint>
           </label>
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span className="field-label">Роль</span>
@@ -301,6 +304,7 @@ export function SettingsPage() {
                 value={editPassword}
                 onChange={(e) => setEditPassword(e.target.value)}
               />
+              <FieldHint>Оставьте пустым или задайте новый (не короче 10 символов)</FieldHint>
             </label>
             {editErr ? (
               <p className="form-error" role="alert" style={{ gridColumn: '1 / -1' }}>

@@ -1,0 +1,94 @@
+/* Design tokens — light */
+:root {
+  color-scheme: light;
+  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --bg: #f3f5f9;
+  --bg-subtle: #e8ecf4;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --fg: #0c1222;
+  --fg-muted: #5c6578;
+  --border: #d7deea;
+  --border-strong: #b8c2d6;
+
+  --accent: #3d5afe;
+  --accent-hover: #2f4ae8;
+  --accent-soft: rgba(61, 90, 254, 0.12);
+  --accent-ring: rgba(61, 90, 254, 0.35);
+
+  --success: #0d9f6e;
+  --warning: #c27803;
+  --danger: #d92d20;
+  --danger-soft: rgba(217, 45, 32, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 28px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.14);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --sidebar-w: 260px;
+  --sidebar-w-collapsed: 4.5rem;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --bg-subtle: #121922;
+  --surface: #141b24;
+  --surface-2: #1a2330;
+  --fg: #eef2f7;
+  --fg-muted: #9aa4b5;
+  --border: #263041;
+  --border-strong: #3a4a63;
+
+  --accent: #7c9bff;
+  --accent-hover: #9db4ff;
+  --accent-soft: rgba(124, 155, 255, 0.15);
+  --accent-ring: rgba(124, 155, 255, 0.45);
+
+  --success: #3ecf8e;
+  --warning: #f0b429;
+  --danger: #ff8a7a;
+  --danger-soft: rgba(255, 138, 122, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .loading-screen::after {
+    animation: none !important;
+    border-color: var(--border-strong);
+    border-top-color: var(--accent);
+    opacity: 0.85;
+  }
+
+  .theme-popover {
+    animation: none !important;
+  }
+}

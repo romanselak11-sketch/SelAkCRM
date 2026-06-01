@@ -20,3 +20,13 @@ export const RENEWAL_STATUS_LABELS: Record<RenewalTaskStatusApi, string> = {
 export function renewalStatusBadgeClass(status: RenewalTaskStatusApi): string {
   return `task-status-badge task-status-badge--${status.toLowerCase().replace(/_/g, '-')}`;
 }
+
+/** Статусы, в которых можно отложить, продлить или зафиксировать отказ. */
+export function canActOnRenewalTask(status: RenewalTaskStatusApi): boolean {
+  return (
+    status === 'IN_PROGRESS' ||
+    status === 'AWAITING_ACTION' ||
+    status === 'POSTPONED' ||
+    status === 'AWAITING_FEEDBACK'
+  );
+}

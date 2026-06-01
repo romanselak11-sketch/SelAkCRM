@@ -76,12 +76,31 @@ def run_desktop_uvicorn() -> None:
     uvicorn.run("selakcrm.main:app", host="127.0.0.1", port=port, log_level="info")
 
 
+def _write_crash_log(exc: BaseException) -> None:
+    try:
+        log_dir = resolve_user_data_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        import traceback
+
+        (log_dir / "startup_error.log").write_text(traceback.format_exc(), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def run_desktop() -> None:
     """
     Desktop-режим для Windows exe:
     - по умолчанию пытается поднять трей-иконку (если доступны pystray + Pillow)
     - иначе запускается как раньше (консольный uvicorn + открытие браузера)
     """
+    try:
+        _run_desktop_inner()
+    except Exception as exc:
+        _write_crash_log(exc)
+        raise
+
+
+def _run_desktop_inner() -> None:
     tray_env = os.environ.get("SELAKCRM_TRAY", "").strip().lower()
     if tray_env in {"0", "false", "off", "no"}:
         run_desktop_uvicorn()

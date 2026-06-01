@@ -3,6 +3,7 @@ import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { setDocumentTitle } from '../utils/documentTitle';
+import { resetPageScrollLock } from '../utils/pageScrollLock';
 
 function NavIcon({
   name,
@@ -132,6 +133,7 @@ export function AppLayout() {
 
   useEffect(() => {
     setDocumentTitle(sectionTitle(loc.pathname));
+    resetPageScrollLock();
   }, [loc.pathname]);
 
   useEffect(() => {

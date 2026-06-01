@@ -3,13 +3,16 @@ import type { FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import {
   RENEWAL_STATUS_LABELS,
+  canActOnRenewalTask,
   renewalStatusBadgeClass,
   type RenewalTaskStatusApi,
 } from '../domain/renewal-task-status';
+import { formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
 import { toLocalYMD } from '../utils/localDate';
 import { DateField } from './DateField';
 import { Modal } from './Modal';
 import { PolicyForm } from './PolicyForm';
+import { ValidatedTextarea } from './ValidatedTextarea';
 
 export type RenewalTaskRow = {
   taskId: string;
@@ -32,6 +35,18 @@ export type RenewalTaskRow = {
     insuredObject?: string | null;
     insuranceSumS: string | null;
   };
+  /** Новый полис после продления (статус «Завершена»). */
+  renewedPolicy?: {
+    id: string;
+    number: string;
+    endDate: string;
+    issueDate?: string | null;
+    companyName: string;
+    productName: string;
+    insuredObject?: string | null;
+    insuranceSumS: string | null;
+    premiumRubles?: string | null;
+  } | null;
   /** Заполняется при статусе «Отказ клиента». */
   declineReason?: string | null;
 };
@@ -83,8 +98,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
 
   if (!task) return null;
 
-  const canActOnTask =
-    task.status === 'IN_PROGRESS' || task.status === 'AWAITING_ACTION';
+  const canActOnTask = canActOnRenewalTask(task.status);
 
   const untilLabel =
     task.display.kind === 'days' ? `${task.display.value} дн.` : task.display.value;
@@ -184,6 +198,36 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
                 <strong>Причина отказа:</strong> {task.declineReason}
               </p>
             ) : null}
+            {task.status === 'RENEWED' && task.renewedPolicy ? (
+              <div className="renewal-task-modal__renewed-block">
+                <p className="renewal-task-modal__line">
+                  <strong>Оформленный полис:</strong> {task.renewedPolicy.number}
+                </p>
+                <p className="renewal-task-modal__line">
+                  <strong>Компания / продукт:</strong> {task.renewedPolicy.companyName} /{' '}
+                  {task.renewedPolicy.productName}
+                </p>
+                <p className="renewal-task-modal__line">
+                  <strong>Объект страхования:</strong>{' '}
+                  {task.renewedPolicy.insuredObject?.trim() || '—'}
+                </p>
+                <p className="renewal-task-modal__line">
+                  <strong>Дата оформления:</strong>{' '}
+                  {task.renewedPolicy.issueDate
+                    ? formatIsoDateRu(task.renewedPolicy.issueDate)
+                    : '—'}
+                </p>
+                <p className="renewal-task-modal__line">
+                  <strong>Дата окончания:</strong> {formatIsoDateRu(task.renewedPolicy.endDate)}
+                </p>
+                <p className="renewal-task-modal__line">
+                  <strong>Стоимость полиса:</strong>{' '}
+                  {task.renewedPolicy.insuranceSumS
+                    ? formatMoneyRu(task.renewedPolicy.insuranceSumS)
+                    : '—'}
+                </p>
+              </div>
+            ) : null}
           </div>
           {canActOnTask ? (
             <div className="renewal-task-modal__actions">
@@ -251,9 +295,9 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
         <form className="renewal-task-modal__form" onSubmit={submitDecline}>
           <label className="field">
             <span className="field-label">Причина отказа клиента</span>
-            <textarea
+            <ValidatedTextarea
               value={declineReason}
-              onChange={(e) => setDeclineReason(e.target.value)}
+              onChange={setDeclineReason}
               maxLength={1000}
               rows={5}
               required

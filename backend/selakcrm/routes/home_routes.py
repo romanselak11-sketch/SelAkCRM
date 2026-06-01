@@ -11,8 +11,10 @@ from selakcrm.schemas_base import StrictBody
 from selakcrm.domain.policy_dates import calendar_days_until_end
 from selakcrm.models import Client, InsuranceCompany, InsuranceProduct, Policy, RenewalTask
 from selakcrm.routes.policies_routes import CreatePolicyIn, create_policy_from_home
+from selakcrm.routes.clients_routes import CreateClientIn, _validate_documents_url
 from selakcrm.serializers import _iso, client_row, company_row, policy_full, product_row, renewal_task_hours_minutes
 from selakcrm.services.audit_log import audit_log
+from selakcrm.services.client_create import create_client_record
 from selakcrm.services.renewal_sync import RenewalSyncService
 from selakcrm.time_utils import utcnow
 
@@ -22,7 +24,10 @@ RENEWAL_INCLUDE = (
     joinedload(RenewalTask.policy).joinedload(Policy.client),
     joinedload(RenewalTask.policy).joinedload(Policy.company),
     joinedload(RenewalTask.policy).joinedload(Policy.product),
+    joinedload(RenewalTask.renewedPolicy).joinedload(Policy.company),
+    joinedload(RenewalTask.renewedPolicy).joinedload(Policy.product),
 )
+ACTIONABLE_RENEWAL_STATUSES = ("IN_PROGRESS", "AWAITING_ACTION", "POSTPONED", "AWAITING_FEEDBACK")
 ALLOWED_TASK_LIMITS = {10, 25, 50}
 
 
@@ -42,6 +47,20 @@ def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     return page, lim
 
 
+def _policy_summary(p: Policy) -> dict:
+    return {
+        "id": p.id,
+        "number": p.number,
+        "endDate": _iso(p.endDate),
+        "issueDate": _iso(p.issueDate) if p.issueDate else None,
+        "companyName": p.company.name,
+        "productName": p.product.name,
+        "insuredObject": p.insuredObject,
+        "insuranceSumS": p.insuranceSumS,
+        "premiumRubles": p.premiumRubles,
+    }
+
+
 def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
     p = t.policy
     days_left = calendar_days_until_end(p.endDate, today)
@@ -49,6 +68,9 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
         display = {"kind": "days", "value": days_left}
     else:
         display = {"kind": "hm", "value": renewal_task_hours_minutes(p.endDate, today)}
+    renewed_policy = None
+    if t.status == "RENEWED" and t.renewedPolicy is not None:
+        renewed_policy = _policy_summary(t.renewedPolicy)
     return {
         "taskId": t.id,
         "taskNumber": t.taskNumber,
@@ -74,7 +96,13 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
             "insuredObject": p.insuredObject,
             "insuranceSumS": p.insuranceSumS,
         },
+        "renewedPolicy": renewed_policy,
     }
+
+
+def _require_policy_form_client_create(user: JwtUser) -> None:
+    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER", "MANAGER"):
+        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
 
 
 @router.get("/policy-form/clients")
@@ -90,6 +118,29 @@ def policy_form_clients(
         .all()
     )
     return [client_row(c) for c in rows]
+
+
+@router.post("/policy-form/clients")
+def policy_form_create_client(
+    body: CreateClientIn,
+    user: Annotated[JwtUser, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+) -> dict:
+    """Создание клиента из формы полиса (менеджер и супер-менеджер)."""
+    _require_policy_form_client_create(user)
+    _validate_documents_url(body.documentsUrl)
+    c = create_client_record(
+        db,
+        user_id=user.sub,
+        last_name=body.lastName,
+        first_name=body.firstName,
+        middle_name=body.middleName,
+        phone=body.phone,
+        additional_phones=body.additionalPhones,
+        email=body.email,
+        documents_url=body.documentsUrl,
+    )
+    return client_row(c)
 
 
 @router.get("/policy-form/companies")
@@ -131,7 +182,7 @@ def renewal_tasks(
     tasks = (
         db.query(RenewalTask)
         .options(*RENEWAL_INCLUDE)
-        .join(Policy)
+        .join(Policy, RenewalTask.policyId == Policy.id)
         .filter(Policy.deletedAt.is_(None), RenewalTask.status.in_(("IN_PROGRESS", "AWAITING_ACTION")))
         .order_by(RenewalTask.createdAt)
         .all()
@@ -149,6 +200,7 @@ def renewal_tasks(
                 "client": row["client"],
                 "policy": row["policy"],
                 "declineReason": row["declineReason"],
+                "renewedPolicy": row["renewedPolicy"],
             }
         )
     return out
@@ -166,7 +218,7 @@ def tasks_registry(
     skip = (p - 1) * lim
     base_q = (
         db.query(RenewalTask)
-        .join(Policy)
+        .join(Policy, RenewalTask.policyId == Policy.id)
         .filter(Policy.deletedAt.is_(None))
     )
     total = base_q.count()
@@ -244,7 +296,7 @@ def postpone_task(
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
     if not t:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    if t.status not in ("IN_PROGRESS", "AWAITING_ACTION"):
+    if t.status not in ACTIONABLE_RENEWAL_STATUSES:
         raise HTTPException(400, detail={"statusCode": 400, "message": "Задача недоступна для отсрочки", "error": "Bad Request"})
     until = datetime.fromisoformat(body.until.replace("Z", "+00:00"))
     if until.tzinfo:
@@ -281,7 +333,7 @@ def decline_task(
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
     if not t:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    if t.status not in ("IN_PROGRESS", "AWAITING_ACTION"):
+    if t.status not in ACTIONABLE_RENEWAL_STATUSES:
         raise HTTPException(400, detail={"statusCode": 400, "message": "Задача уже закрыта", "error": "Bad Request"})
     now = utcnow()
     t.status = "CLIENT_DECLINED"
@@ -307,16 +359,12 @@ def renew_task(
     db: Session = Depends(get_db),
 ) -> dict:
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
-    if not t or t.status not in ("IN_PROGRESS", "AWAITING_ACTION"):
+    if not t or t.status not in ACTIONABLE_RENEWAL_STATUSES:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    if body.clientId != t.policy.clientId:
-        raise HTTPException(
-            400,
-            detail={"statusCode": 400, "message": "Клиент должен совпадать с полисом в задаче", "error": "Bad Request"},
-        )
     new_p = create_policy_from_home(db, body, user.sub)
     now = utcnow()
     t.status = "RENEWED"
+    t.renewedPolicyId = new_p.id
     t.snoozedUntil = None
     t.statusChangedAt = now
     audit_log(

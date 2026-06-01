@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { FieldHint } from '../components/FieldHint';
+import { ValidatedInput } from '../components/ValidatedInput';
 import { setDocumentTitle } from '../utils/documentTitle';
 
 export function LoginPage() {
@@ -58,7 +60,12 @@ export function LoginPage() {
         <form className="form-grid form-grid--one" onSubmit={onSubmit}>
           <label className="field">
             <span className="field-label">Логин</span>
-            <input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
+            <ValidatedInput
+              kind="login"
+              value={login}
+              onChange={setLogin}
+              autoComplete="username"
+            />
           </label>
           <label className="field">
             <span className="field-label">Пароль</span>
@@ -68,6 +75,7 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
+            <FieldHint>Введите пароль от учётной записи</FieldHint>
           </label>
           {err && (
             <p className="form-error" role="alert">

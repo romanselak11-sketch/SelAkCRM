@@ -10,13 +10,14 @@ from sqlalchemy.orm import Session, joinedload
 from selakcrm.database import get_db
 from selakcrm.deps import JwtUser, get_current_user
 from selakcrm.schemas_base import StrictBody
-from selakcrm.domain.phone import assert_valid_phone, normalize_phone_ru
 from selakcrm.domain.search import client_search_where_clause, parse_search_tokens
 from selakcrm.domain.url_mask import mask_url_for_audit
+from selakcrm.domain.phone import assert_valid_phone, normalize_phone_ru
 from selakcrm.ids import new_cuid
 from selakcrm.models import Client, ClientPhone, Policy
 from selakcrm.serializers import client_row, policy_row
 from selakcrm.services.audit_log import audit_log
+from selakcrm.services.client_create import create_client_record
 from selakcrm.time_utils import utcnow
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -139,55 +140,16 @@ def create_client(
 ) -> dict:
     _require_admin_manager_write(user)
     _validate_documents_url(body.documentsUrl)
-    try:
-        assert_valid_phone(body.phone)
-    except ValueError as e:
-        raise HTTPException(400, detail={"statusCode": 400, "message": str(e), "error": "Bad Request"})
-    extras = [str(s).strip() for s in (body.additionalPhones or []) if str(s).strip()]
-    for ph in extras:
-        try:
-            assert_valid_phone(ph)
-        except ValueError as e:
-            raise HTTPException(400, detail={"statusCode": 400, "message": str(e), "error": "Bad Request"})
-    now = utcnow()
-    pn = normalize_phone_ru(body.phone)
-    c = Client(
-        id=new_cuid(),
-        lastName=body.lastName,
-        firstName=body.firstName,
-        middleName=body.middleName,
-        phone=body.phone,
-        phoneNormalized=pn,
-        email=body.email,
-        documentsUrl=body.documentsUrl,
-        createdAt=now,
-        updatedAt=now,
-    )
-    db.add(c)
-    db.flush()
-    for i, ph in enumerate(extras):
-        db.add(
-            ClientPhone(
-                id=new_cuid(),
-                clientId=c.id,
-                phone=ph,
-                phoneNormalized=normalize_phone_ru(ph),
-                sortOrder=i,
-            )
-        )
-    db.flush()
-    c = db.query(Client).options(joinedload(Client.additionalPhones)).filter(Client.id == c.id).one()
-    audit_log(
+    c = create_client_record(
         db,
         user_id=user.sub,
-        action="CLIENT_CREATE",
-        entity_type="Client",
-        entity_id=c.id,
-        payload={
-            "lastName": c.lastName,
-            "firstName": c.firstName,
-            "documentsUrl": mask_url_for_audit(c.documentsUrl),
-        },
+        last_name=body.lastName,
+        first_name=body.firstName,
+        middle_name=body.middleName,
+        phone=body.phone,
+        additional_phones=body.additionalPhones,
+        email=body.email,
+        documents_url=body.documentsUrl,
     )
     return client_row(c)
 

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
+import { FieldHint } from '../components/FieldHint';
+import { ValidatedInput } from '../components/ValidatedInput';
 import { setDocumentTitle } from '../utils/documentTitle';
 
 export function SetupPage() {
@@ -53,11 +55,12 @@ export function SetupPage() {
         <form className="form-grid form-grid--one" onSubmit={onSubmit}>
           <label className="field">
             <span className="field-label">Логин супер-админа</span>
-            <input value={login} onChange={(e) => setLogin(e.target.value)} />
+            <ValidatedInput kind="login" value={login} onChange={setLogin} />
           </label>
           <label className="field">
             <span className="field-label">Пароль</span>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <FieldHint>Любые символы, не короче 10</FieldHint>
           </label>
           {err && (
             <p className="form-error" role="alert">

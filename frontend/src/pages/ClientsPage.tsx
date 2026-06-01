@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../api';
+import type { ClientListItem, Paginated } from '../api.types';
 import { useAuth } from '../auth';
 import { ClientDetailsModal, type ClientDetails } from '../components/ClientDetailsModal';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
@@ -10,18 +11,75 @@ import { PolicyDetailsModal } from '../components/PolicyDetailsModal';
 import { PolicyForm } from '../components/PolicyForm';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
-import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
+import { FieldHint } from '../components/FieldHint';
+import { ValidatedInput } from '../components/ValidatedInput';
+import { buildListQueryString, type ListPageSize } from '../utils/listPagination';
 
-type Client = {
-  id: string;
-  lastName: string;
-  firstName: string;
-  middleName?: string | null;
+function ClientPhoneFields({
+  phone,
+  setPhone,
+  extraPhones,
+  setExtraPhones,
+}: {
   phone: string;
-  additionalPhones?: { id: string; phone: string }[];
-  email?: string | null;
-  documentsUrl?: string | null;
-};
+  setPhone: (value: string) => void;
+  extraPhones: string[];
+  setExtraPhones: (value: string[] | ((prev: string[]) => string[])) => void;
+}) {
+  return (
+    <div className="field" style={{ gridColumn: '1 / -1' }}>
+      <span className="field-label">Телефон</span>
+      <div className="phone-field__rows">
+        <div className="phone-field__row">
+          <ValidatedInput
+            kind="phone"
+            value={phone}
+            onChange={setPhone}
+            required
+            autoComplete="tel"
+            placeholder="+7 …"
+            hideHint
+          />
+          <button
+            type="button"
+            className="btn btn--ghost phone-field__row-btn"
+            title="Добавить ещё номер"
+            aria-label="Добавить ещё номер"
+            onClick={() => setExtraPhones((prev) => [...prev, ''])}
+          >
+            +
+          </button>
+        </div>
+        {extraPhones.map((val, i) => (
+          <div key={i} className="phone-field__row">
+            <ValidatedInput
+              kind="phone"
+              value={val}
+              onChange={(nextVal) => {
+                const next = [...extraPhones];
+                next[i] = nextVal;
+                setExtraPhones(next);
+              }}
+              autoComplete="tel"
+              placeholder="Доп. номер"
+              hideHint
+            />
+            <button
+              type="button"
+              className="btn btn--ghost phone-field__row-btn"
+              title="Убрать номер"
+              aria-label="Убрать номер"
+              onClick={() => setExtraPhones((prev) => prev.filter((_, j) => j !== i))}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <FieldHint>Например: +79001234567</FieldHint>
+    </div>
+  );
+}
 
 /** Разрешены только http/https для безопасного открытия в новой вкладке. */
 function safeHttpHref(raw: string | null | undefined): string | null {
@@ -40,7 +98,7 @@ function safeHttpHref(raw: string | null | undefined): string | null {
 
 export function ClientsPage() {
   const { me } = useAuth();
-  const [rows, setRows] = useState<Client[]>([]);
+  const [rows, setRows] = useState<ClientListItem[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [listPage, setListPage] = useState(1);
   const [listLimit, setListLimit] = useState<ListPageSize>(10);
@@ -66,7 +124,7 @@ export function ClientsPage() {
 
   useEffect(() => {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    void api<Paginated<Client>>(`/clients?${q}`).then((res) => {
+    void api<Paginated<ClientListItem>>(`/clients?${q}`).then((res) => {
       setRows(res.items);
       setListTotal(res.total);
       const totalPages = Math.max(1, Math.ceil(res.total / res.limit));
@@ -78,7 +136,7 @@ export function ClientsPage() {
 
   async function load() {
     const q = buildListQueryString(listPage, listLimit, debouncedQ);
-    const res = await api<Paginated<Client>>(`/clients?${q}`);
+    const res = await api<Paginated<ClientListItem>>(`/clients?${q}`);
     setRows(res.items);
     setListTotal(res.total);
   }
@@ -99,7 +157,7 @@ export function ClientsPage() {
     setModalOpen(true);
   }
 
-  function openEdit(c: Client) {
+  function openEdit(c: ClientListItem) {
     setEditingId(c.id);
     setLastName(c.lastName);
     setFirstName(c.firstName);
@@ -116,7 +174,7 @@ export function ClientsPage() {
     resetForm();
   }
 
-  function openClientDetails(c: Client) {
+  function openClientDetails(c: ClientListItem) {
     setSelectedClient(c);
   }
 
@@ -175,78 +233,38 @@ export function ClientsPage() {
         <form className="form-grid" onSubmit={(ev) => void onSubmit(ev)}>
           <label className="field">
             <span className="field-label">Фамилия</span>
-            <input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+            <ValidatedInput kind="personName" value={lastName} onChange={setLastName} required />
           </label>
           <label className="field">
             <span className="field-label">Имя</span>
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+            <ValidatedInput kind="personName" value={firstName} onChange={setFirstName} required />
           </label>
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span className="field-label">Отчество</span>
-            <input value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
+            <ValidatedInput kind="personName" value={middleName} onChange={setMiddleName} />
           </label>
-          <div className="field" style={{ gridColumn: '1 / -1' }}>
-            <span className="field-label">Телефон</span>
-            <div className="phone-field__rows">
-              <div className="phone-field__row">
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="+7 …"
-                />
-                <button
-                  type="button"
-                  className="btn btn--ghost phone-field__row-btn"
-                  title="Добавить ещё номер"
-                  aria-label="Добавить ещё номер"
-                  onClick={() => setExtraPhones((prev) => [...prev, ''])}
-                >
-                  +
-                </button>
-              </div>
-              {extraPhones.map((val, i) => (
-                <div key={i} className="phone-field__row">
-                  <input
-                    value={val}
-                    onChange={(e) => {
-                      const next = [...extraPhones];
-                      next[i] = e.target.value;
-                      setExtraPhones(next);
-                    }}
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="Доп. номер"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn--ghost phone-field__row-btn"
-                    title="Убрать номер"
-                    aria-label="Убрать номер"
-                    onClick={() => setExtraPhones((prev) => prev.filter((_, j) => j !== i))}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ClientPhoneFields
+            phone={phone}
+            setPhone={setPhone}
+            extraPhones={extraPhones}
+            setExtraPhones={setExtraPhones}
+          />
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span className="field-label">Email</span>
-            <input
+            <ValidatedInput
+              kind="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={setEmail}
               placeholder="опционально"
             />
           </label>
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span className="field-label">Ссылка на документы</span>
-            <input
+            <ValidatedInput
+              kind="url"
               value={documentsUrl}
-              onChange={(e) => setDocumentsUrl(e.target.value)}
+              onChange={setDocumentsUrl}
               placeholder="URL в облаке, опционально"
             />
           </label>

@@ -1,26 +1,27 @@
 import os
 import sys
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 
 from selakcrm.config import settings
 from selakcrm.database import SessionLocal
-from selakcrm.validation_http import nest_validation_messages
+from selakcrm.http_errors import register_http_exception_handlers
 from selakcrm.routes.analytics_audit_routes import run_audit_purge_job
 from selakcrm.routes.bundle import build_api_router
 from selakcrm.services.renewal_sync import RenewalSyncService
 
 scheduler = BackgroundScheduler()
+log = logging.getLogger(__name__)
+DEFAULT_DEV_JWT_SECRET = "change-me-in-production-use-long-random-secret-32+"
 
 
 def _run_hourly_renewal() -> None:
@@ -29,6 +30,7 @@ def _run_hourly_renewal() -> None:
         RenewalSyncService(db).sync()
         db.commit()
     except Exception:
+        log.exception("Hourly renewal sync job failed")
         db.rollback()
         raise
     finally:
@@ -54,8 +56,18 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
+def _warn_if_default_jwt_secret() -> None:
+    if getattr(sys, "frozen", False):
+        return
+    if settings.jwt_secret == DEFAULT_DEV_JWT_SECRET:
+        log.warning(
+            "JWT_SECRET uses development default value. Set a long random secret in production."
+        )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="SelAkCRM API", lifespan=lifespan)
+    _warn_if_default_jwt_secret()
     origins = [o.strip() for o in settings.web_origin.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
@@ -65,36 +77,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.exception_handler(StarletteHTTPException)
-    async def http_exc_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        if isinstance(exc.detail, dict):
-            return JSONResponse(status_code=exc.status_code, content=exc.detail)
-        msg = str(exc.detail) if exc.detail else exc.__class__.__name__
-        err = {
-            400: "Bad Request",
-            401: "Unauthorized",
-            403: "Forbidden",
-            404: "Not Found",
-            409: "Conflict",
-            422: "Unprocessable Entity",
-            429: "Too Many Requests",
-        }.get(exc.status_code, "Error")
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"statusCode": exc.status_code, "message": msg, "error": err},
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # NestJS class-validator → 400 Bad Request, message — массив строк
-        return JSONResponse(
-            status_code=400,
-            content={
-                "statusCode": 400,
-                "message": nest_validation_messages(exc.errors()),
-                "error": "Bad Request",
-            },
-        )
+    register_http_exception_handlers(app)
 
     app.include_router(build_api_router())
     _mount_spa_static_if_configured(app)

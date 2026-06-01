@@ -4,6 +4,13 @@ import { api, ApiError } from '../api';
 import { AnalyticsPeriodPicker, type AnalyticsPreset } from '../components/AnalyticsPeriodPicker';
 import { PageHeading } from '../components/PageHeading';
 import { setDocumentTitle } from '../utils/documentTitle';
+import {
+  presetMonthCalendar,
+  presetToday,
+  presetWeek,
+  presetYesterday,
+  toLocalYMD,
+} from '../utils/localDate';
 
 type DailyPoint = { day: string; revenue: string; policiesCount: number };
 
@@ -21,37 +28,6 @@ type Summary = {
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
-}
-
-function localYMD(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function presetToday() {
-  const t = new Date();
-  return { from: localYMD(t), to: localYMD(t) };
-}
-
-function presetYesterday() {
-  const t = new Date();
-  t.setDate(t.getDate() - 1);
-  const y = localYMD(t);
-  return { from: y, to: y };
-}
-
-/** Последние 7 дней, включая сегодня */
-function presetWeek() {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 6);
-  return { from: localYMD(from), to: localYMD(to) };
-}
-
-/** С 1-го числа текущего месяца по сегодня */
-function presetMonthCalendar() {
-  const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1);
-  return { from: localYMD(from), to: localYMD(to) };
 }
 
 function parseRev(s: string) {
@@ -303,6 +279,30 @@ function RevenueTooltip({
   );
 }
 
+function AnalyticsSummaryGrid({ data }: { data: Summary }) {
+  return (
+    <div className="metric-grid">
+      <div className="metric">
+        <p className="metric-label">Выручка агента</p>
+        <p className="metric-value">{moneyFmt.format(parseRev(data.revenue))} ₽</p>
+        <RevenueDelta pct={data.revenueDeltaPct ?? null} currentRevenue={data.revenue} />
+      </div>
+      <div className="metric">
+        <p className="metric-label">Полисов</p>
+        <p className="metric-value">{data.policiesCount}</p>
+        <PoliciesDelta pct={data.policiesDeltaPct ?? null} currentCount={data.policiesCount} />
+      </div>
+      <PreviousPeriodPanel
+        days={data.periodDays}
+        revenue={data.prevRevenue}
+        policiesCount={data.prevPoliciesCount}
+        prevFrom={data.prevFrom}
+        prevTo={data.prevTo}
+      />
+    </div>
+  );
+}
+
 function PoliciesTooltip({
   active,
   payload,
@@ -476,9 +476,9 @@ export function AnalyticsPage() {
   const [from, setFrom] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
-    return localYMD(d);
+    return toLocalYMD(d);
   });
-  const [to, setTo] = useState(() => localYMD(new Date()));
+  const [to, setTo] = useState(() => toLocalYMD(new Date()));
   const [preset, setPreset] = useState<AnalyticsPreset>('custom');
   const [data, setData] = useState<Summary | null>(null);
   const [series, setSeries] = useState<DailyPoint[]>([]);
@@ -526,27 +526,7 @@ export function AnalyticsPage() {
         </p>
       )}
 
-      {data && !err && (
-        <div className="metric-grid">
-          <div className="metric">
-            <p className="metric-label">Выручка агента</p>
-            <p className="metric-value">{moneyFmt.format(parseRev(data.revenue))} ₽</p>
-            <RevenueDelta pct={data.revenueDeltaPct ?? null} currentRevenue={data.revenue} />
-          </div>
-          <div className="metric">
-            <p className="metric-label">Полисов</p>
-            <p className="metric-value">{data.policiesCount}</p>
-            <PoliciesDelta pct={data.policiesDeltaPct ?? null} currentCount={data.policiesCount} />
-          </div>
-          <PreviousPeriodPanel
-            days={data.periodDays}
-            revenue={data.prevRevenue}
-            policiesCount={data.prevPoliciesCount}
-            prevFrom={data.prevFrom}
-            prevTo={data.prevTo}
-          />
-        </div>
-      )}
+      {data && !err && <AnalyticsSummaryGrid data={data} />}
 
       <section className="card analytics-dynamics-card">
         <div className="analytics-dynamics-toolbar">

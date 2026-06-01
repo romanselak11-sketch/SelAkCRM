@@ -2,32 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { formatMoneyForField, normalizeMoneyForApi } from '../utils/moneyInput';
+import { ClientCreateModal, type CreatedClient } from './ClientCreateModal';
 import { DateField } from './DateField';
 import { ScrollableChoiceList } from './ScrollableChoiceList';
-
-const moneyFieldFmt = new Intl.NumberFormat('ru-RU', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function sanitizeMoneyInput(raw: string): string {
-  return raw.replace(/[^\d.,\s]/g, '');
-}
-
-function normalizeMoneyForApi(raw: string): string {
-  const cleaned = sanitizeMoneyInput(raw).replace(/\s+/g, '').replace(',', '.');
-  if (!cleaned) return '';
-  const amount = Number(cleaned);
-  if (!Number.isFinite(amount)) return '';
-  return amount.toFixed(2);
-}
-
-function formatMoneyForField(raw: string | number | null | undefined): string {
-  if (raw === null || raw === undefined) return '';
-  const normalized = normalizeMoneyForApi(String(raw));
-  if (!normalized) return '';
-  return moneyFieldFmt.format(Number(normalized));
-}
+import { ValidatedInput } from './ValidatedInput';
 
 function defaultEndDateYmd(): string {
   const d = new Date();
@@ -65,6 +44,60 @@ export type PolicyFormProps = {
   onCancel: () => void;
 };
 
+type ChoiceOption = { value: string; label: string };
+
+function PolicyFormClientField({
+  clientId,
+  clientOptions,
+  onClientChange,
+  clientCreateOpen,
+  onClientCreateOpen,
+  onClientCreateClose,
+  appendClient,
+}: {
+  clientId: string;
+  clientOptions: ChoiceOption[];
+  onClientChange: (value: string) => void;
+  clientCreateOpen: boolean;
+  onClientCreateOpen: () => void;
+  onClientCreateClose: () => void;
+  appendClient: (created: CreatedClient) => void;
+}) {
+  return (
+    <>
+      <div className="field">
+        <span className="field-label">Клиент</span>
+        <div className="choice-field-row">
+          <ScrollableChoiceList
+            value={clientId}
+            onChange={onClientChange}
+            options={clientOptions}
+            placeholder="Выберите клиента"
+            searchable
+            searchPlaceholder="Введите имя клиента"
+            emptySearchText="Клиенты не найдены"
+          />
+          <button
+            type="button"
+            className="btn btn--ghost choice-field-row__add"
+            title="Новый клиент"
+            aria-label="Новый клиент"
+            onClick={onClientCreateOpen}
+          >
+            +
+          </button>
+        </div>
+      </div>
+      <ClientCreateModal
+        open={clientCreateOpen}
+        onClose={onClientCreateClose}
+        onCreated={appendClient}
+        createPath="/home/policy-form/clients"
+      />
+    </>
+  );
+}
+
 export function PolicyForm({
   taskId,
   initialClientId,
@@ -88,6 +121,7 @@ export function PolicyForm({
   const [endDate, setEndDate] = useState(defaultEndDateYmd);
   const [err, setErr] = useState<string | null>(null);
   const [refsErr, setRefsErr] = useState<string | null>(null);
+  const [clientCreateOpen, setClientCreateOpen] = useState(false);
 
   const applyDefaultPremiumForProduct = useCallback(
     (pid: string, list: ProductOpt[]) => {
@@ -177,6 +211,28 @@ export function PolicyForm({
     };
   }, [policyId]);
 
+  function appendClient(c: CreatedClient) {
+    setClients((prev) => {
+      const next = [
+        ...prev.filter((x) => x.id !== c.id),
+        {
+          id: c.id,
+          lastName: c.lastName,
+          firstName: c.firstName,
+          middleName: c.middleName,
+        },
+      ];
+      next.sort((a, b) => {
+        const ln = (a.lastName ?? '').localeCompare(b.lastName ?? '', 'ru');
+        if (ln !== 0) return ln;
+        return (a.firstName ?? '').localeCompare(b.firstName ?? '', 'ru');
+      });
+      return next;
+    });
+    setClientId(c.id);
+    setClientCreateOpen(false);
+  }
+
   const clientOptions = useMemo(
     () =>
       clients.map((c) => ({
@@ -229,6 +285,9 @@ export function PolicyForm({
         await api(`/policies/${policyId}`, {
           method: 'PATCH',
           body: JSON.stringify({
+            clientId,
+            companyId,
+            productId,
             number,
             insuredObject,
             insuranceSumS: normalizeMoneyForApi(insuranceSumS),
@@ -254,24 +313,17 @@ export function PolicyForm({
     }
   }
 
-  const refsLocked = Boolean(policyId);
-  const clientLocked = refsLocked || Boolean(taskId);
-
   return (
     <form className="form-grid" onSubmit={onSubmit}>
-      <label className="field">
-        <span className="field-label">Клиент</span>
-        <ScrollableChoiceList
-          value={clientId}
-          onChange={setClientId}
-          options={clientOptions}
-          placeholder="Выберите клиента"
-          searchable
-          searchPlaceholder="Введите имя клиента"
-          emptySearchText="Клиенты не найдены"
-          disabled={clientLocked}
-        />
-      </label>
+      <PolicyFormClientField
+        clientId={clientId}
+        clientOptions={clientOptions}
+        onClientChange={setClientId}
+        clientCreateOpen={clientCreateOpen}
+        onClientCreateOpen={() => setClientCreateOpen(true)}
+        onClientCreateClose={() => setClientCreateOpen(false)}
+        appendClient={appendClient}
+      />
       <label className="field">
         <span className="field-label">Компания</span>
         <ScrollableChoiceList
@@ -279,7 +331,6 @@ export function PolicyForm({
           onChange={onCompanyChange}
           options={companyOptions}
           placeholder="Выберите компанию"
-          disabled={refsLocked}
         />
       </label>
       <label className="field">
@@ -289,38 +340,41 @@ export function PolicyForm({
           onChange={onProductChange}
           options={productOptions}
           placeholder="Выберите продукт"
-          disabled={refsLocked}
         />
       </label>
       <label className="field">
         <span className="field-label">Номер полиса</span>
-        <input value={number} onChange={(e) => setNumber(e.target.value)} required />
+        <ValidatedInput
+          kind="text"
+          value={number}
+          onChange={setNumber}
+          hint="Например: D120-0000000245"
+          required
+        />
       </label>
       <label className="field">
         <span className="field-label">Объект страхования</span>
-        <input value={insuredObject} onChange={(e) => setInsuredObject(e.target.value)} required />
+        <ValidatedInput kind="text" value={insuredObject} onChange={setInsuredObject} required />
       </label>
       <label className="field">
         <span className="field-label">Стоимость полиса</span>
-        <input
+        <ValidatedInput
+          kind="money"
           value={insuranceSumS}
-          inputMode="decimal"
-          className="input-numeric-no-spin"
-          onChange={(e) => setInsuranceSumS(sanitizeMoneyInput(e.target.value))}
+          onChange={setInsuranceSumS}
           onBlur={() => setInsuranceSumS((v) => formatMoneyForField(v))}
         />
       </label>
       <label className="field">
         <span className="field-label">Комиссия агента в %</span>
-        <input value={premiumPercent} onChange={(e) => setPremiumPercent(e.target.value)} />
+        <ValidatedInput kind="decimal" value={premiumPercent} onChange={setPremiumPercent} />
       </label>
       <label className="field">
         <span className="field-label">Дополнительная комиссия</span>
-        <input
+        <ValidatedInput
+          kind="money"
           value={premiumRubles}
-          inputMode="decimal"
-          className="input-numeric-no-spin"
-          onChange={(e) => setPremiumRubles(sanitizeMoneyInput(e.target.value))}
+          onChange={setPremiumRubles}
           onBlur={() => setPremiumRubles((v) => formatMoneyForField(v))}
         />
       </label>

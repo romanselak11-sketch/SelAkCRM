@@ -22,3 +22,9 @@ uvicorn selakcrm.main:app --reload --port 3000
 ```bash
 pytest
 ```
+
+## Конфигурация
+
+- Вне локальной разработки обязательно задайте `JWT_SECRET` длинной случайной строкой.
+- Для CORS используйте `WEB_ORIGIN` со списком доверенных origin через запятую.
+- OpenAPI доступен на `http://localhost:3000/docs`.

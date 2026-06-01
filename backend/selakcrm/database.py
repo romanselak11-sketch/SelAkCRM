@@ -5,6 +5,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from selakcrm.config import settings
+from selakcrm.domain.search import register_sqlite_search_functions
 from selakcrm.models import Base
 
 engine = create_engine(
@@ -16,6 +17,7 @@ engine = create_engine(
 @event.listens_for(Engine, "connect")
 def _sqlite_pragma(dbapi_connection, connection_record) -> None:
     if settings.database_url.startswith("sqlite"):
+        register_sqlite_search_functions(dbapi_connection)
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()

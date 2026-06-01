@@ -1,98 +1,3 @@
-/* Design tokens — light */
-:root {
-  color-scheme: light;
-  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
-
-  --bg: #f3f5f9;
-  --bg-subtle: #e8ecf4;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --fg: #0c1222;
-  --fg-muted: #5c6578;
-  --border: #d7deea;
-  --border-strong: #b8c2d6;
-
-  --accent: #3d5afe;
-  --accent-hover: #2f4ae8;
-  --accent-soft: rgba(61, 90, 254, 0.12);
-  --accent-ring: rgba(61, 90, 254, 0.35);
-
-  --success: #0d9f6e;
-  --warning: #c27803;
-  --danger: #d92d20;
-  --danger-soft: rgba(217, 45, 32, 0.1);
-
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 28px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.14);
-
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --sidebar-w: 260px;
-  --sidebar-w-collapsed: 4.5rem;
-
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-}
-
-[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #0b0f14;
-  --bg-subtle: #121922;
-  --surface: #141b24;
-  --surface-2: #1a2330;
-  --fg: #eef2f7;
-  --fg-muted: #9aa4b5;
-  --border: #263041;
-  --border-strong: #3a4a63;
-
-  --accent: #7c9bff;
-  --accent-hover: #9db4ff;
-  --accent-soft: rgba(124, 155, 255, 0.15);
-  --accent-ring: rgba(124, 155, 255, 0.45);
-
-  --success: #3ecf8e;
-  --warning: #f0b429;
-  --danger: #ff8a7a;
-  --danger-soft: rgba(255, 138, 122, 0.12);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.55);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-
-  .loading-screen::after {
-    animation: none !important;
-    border-color: var(--border-strong);
-    border-top-color: var(--accent);
-    opacity: 0.85;
-  }
-
-  .theme-popover {
-    animation: none !important;
-  }
-}
-
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -111,11 +16,18 @@
 
 html {
   font-size: 16px;
+  overflow-y: auto;
+}
+
+html.modal-scroll-lock,
+html.modal-scroll-lock body {
+  overflow: hidden;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-y: auto;
   font-family: var(--font);
   line-height: 1.5;
   background:
@@ -143,14 +55,20 @@ a:hover {
 
 .app-shell {
   display: flex;
+  height: 100dvh;
   min-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
 }
 
 .sidebar {
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  min-height: 100vh;
+  position: relative;
+  top: auto;
+  align-self: stretch;
+  min-height: 0;
+  height: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   width: var(--sidebar-w);
   flex-shrink: 0;
   background: linear-gradient(165deg, var(--surface) 0%, var(--surface-2) 55%, color-mix(in srgb, var(--surface) 92%, var(--bg-subtle)) 100%);
@@ -357,6 +275,10 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .topbar {
@@ -443,7 +365,7 @@ a:hover {
 }
 
 main {
-  flex: 1;
+  flex: 1 0 auto;
   padding: var(--space-6) var(--space-6) var(--space-8);
   max-width: 1280px;
   width: 100%;
@@ -911,6 +833,17 @@ main {
   margin-bottom: var(--space-5);
 }
 
+.renewal-task-modal__renewed-block {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.task-registry-renewed-label {
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+}
+
 .renewal-task-modal__line {
   margin: 0 0 var(--space-2);
   font-size: 0.9375rem;
@@ -922,10 +855,73 @@ main {
   gap: var(--space-2);
 }
 
-.renewal-task-modal__form .field-hint {
+.field-hint {
+  display: block;
   font-size: 0.8125rem;
+  line-height: 1.35;
   color: var(--fg-muted);
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.field-input-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.field-reject-bubble {
+  position: absolute;
+  z-index: 25;
+  left: 0;
+  max-width: min(100%, 18rem);
+  bottom: calc(100% + 0.375rem);
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  animation: field-reject-in 0.2s var(--ease-out);
+}
+
+.field-reject-bubble::after {
+  content: '';
+  position: absolute;
+  left: 1rem;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  background: var(--surface);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  transform: rotate(45deg);
+}
+
+@keyframes field-reject-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-reject-bubble {
+    animation: none;
+  }
+}
+
+.field-input-wrap .field-hint {
+  margin-top: var(--space-2);
 }
 
 .form-grid {
@@ -960,9 +956,31 @@ main {
 .field .field-label + input,
 .field .field-label + select,
 .field .field-label + .scrollable-choice,
+.field .field-label + .choice-field-row,
 .field .field-label + .date-field,
 .field .field-label + .phone-field__rows {
   margin: 0;
+}
+
+.choice-field-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.choice-field-row .scrollable-choice {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.choice-field-row__add {
+  flex-shrink: 0;
+  align-self: stretch;
+  min-width: 2.25rem;
+  padding: 0;
+  font-size: 1.125rem;
+  line-height: 1;
 }
 
 .phone-field__rows {
@@ -1259,56 +1277,82 @@ label.field > span.field-label {
   pointer-events: none;
 }
 
-.date-field__trigger {
+.date-field__control {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  align-items: stretch;
   width: 100%;
   margin: 0;
-  padding: 0.55rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--fg);
-  font-family: inherit;
-  font-size: 0.9375rem;
-  text-align: left;
-  cursor: pointer;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
-.date-field__trigger:hover:not(:disabled) {
+.date-field__control:hover:not(:has(:disabled)) {
   border-color: var(--border-strong);
 }
 
-.date-field__trigger:focus-visible {
-  outline: none;
+.date-field__control:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.date-field__trigger:disabled {
+.date-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.date-field__input::placeholder {
+  color: var(--fg-muted);
+}
+
+.date-field__input--filled {
+  font-weight: 500;
+}
+
+.date-field__input--placeholder {
+  color: var(--fg-muted);
+}
+
+.date-field__input:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.date-field__trigger-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.date-field__calendar-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 0.65rem;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
-.date-field__placeholder {
-  color: var(--fg-muted);
+.date-field__calendar-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
 }
 
-.date-field__value {
-  font-weight: 500;
+.date-field__calendar-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .date-field__icon {

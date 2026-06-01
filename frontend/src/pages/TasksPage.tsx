@@ -123,7 +123,7 @@ export function TasksPage() {
                     <th>Создана</th>
                     <th>Статус</th>
                     <th>Клиент</th>
-                    <th>Полис</th>
+                    <th>Полис / оформленный</th>
                     <th>Объект страхования</th>
                     <th>Причина отказа</th>
                     <th>Статус изменён</th>
@@ -163,7 +163,16 @@ export function TasksPage() {
                           {t.client.lastName} {t.client.firstName} {t.client.middleName ?? ''}
                         </td>
                         <td>
-                          {t.policy.companyName} / {t.policy.productName}
+                          {t.status === 'RENEWED' && t.renewedPolicy ? (
+                            <>
+                              <span className="task-registry-renewed-label">Оформлен: </span>
+                              {t.renewedPolicy.number} · {t.renewedPolicy.companyName}
+                            </>
+                          ) : (
+                            <>
+                              {t.policy.number} · {t.policy.companyName} / {t.policy.productName}
+                            </>
+                          )}
                         </td>
                         <td>{t.policy.insuredObject?.trim() || '—'}</td>
                         <td

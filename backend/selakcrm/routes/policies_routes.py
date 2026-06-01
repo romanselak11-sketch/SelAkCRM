@@ -91,6 +91,9 @@ class CreatePolicyIn(StrictBody):
 
 
 class UpdatePolicyIn(StrictBody):
+    clientId: str | None = None
+    companyId: str | None = None
+    productId: str | None = None
     number: str | None = Field(default=None, min_length=1)
     insuredObject: str | None = Field(default=None, min_length=1)
     category: str | None = None
@@ -263,7 +266,10 @@ def update_policy_route(
     )
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    _assert_refs_active(db, p.clientId, p.companyId, p.productId)
+    next_client = body.clientId if body.clientId is not None else p.clientId
+    next_company = body.companyId if body.companyId is not None else p.companyId
+    next_product = body.productId if body.productId is not None else p.productId
+    _assert_refs_active(db, next_client, next_company, next_product)
     _assert_premium_pct(body.premiumPercent)
 
     merged_ins = body.insuranceSumS if body.insuranceSumS is not None else p.insuranceSumS
@@ -286,6 +292,12 @@ def update_policy_route(
     parsed_issue = calendar_date_from_ymd(body.issueDate) if body.issueDate else None
     end_changed = parsed_end is not None and not same_calendar_day(parsed_end, p.endDate)
 
+    if body.clientId is not None:
+        p.clientId = body.clientId
+    if body.companyId is not None:
+        p.companyId = body.companyId
+    if body.productId is not None:
+        p.productId = body.productId
     if body.number is not None:
         p.number = body.number
     if body.insuredObject is not None:
@@ -316,6 +328,7 @@ def update_policy_route(
         payload={"fields": [k for k, v in body.model_dump(exclude_unset=True).items()]},
     )
     db.flush()
+    db.expire(p)
     p = (
         db.query(Policy)
         .options(joinedload(Policy.client), joinedload(Policy.company), joinedload(Policy.product))

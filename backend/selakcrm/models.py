@@ -144,7 +144,10 @@ class Policy(Base):
     client: Mapped[Client] = relationship(back_populates="policies")
     company: Mapped[InsuranceCompany] = relationship(back_populates="policies")
     product: Mapped[InsuranceProduct] = relationship(back_populates="policies")
-    renewalTasks: Mapped[list[RenewalTask]] = relationship(back_populates="policy")
+    renewalTasks: Mapped[list[RenewalTask]] = relationship(
+        back_populates="policy",
+        foreign_keys="RenewalTask.policyId",
+    )
 
     __table_args__ = (
         UniqueConstraint("companyId", "number", name="Policy_companyId_number_key"),
@@ -163,12 +166,21 @@ class RenewalTask(Base):
     statusChangedAt: Mapped[datetime] = mapped_column("statusChangedAt", DateTime, default=utcnow)
     snoozedUntil: Mapped[datetime | None] = mapped_column("snoozedUntil", DateTime, nullable=True)
     declineReason: Mapped[str | None] = mapped_column("declineReason", String, nullable=True)
+    renewedPolicyId: Mapped[str | None] = mapped_column(
+        "renewedPolicyId", String, ForeignKey("Policy.id"), nullable=True
+    )
     createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime, default=utcnow)
     updatedAt: Mapped[datetime] = mapped_column(
         "updatedAt", DateTime, default=utcnow, onupdate=utcnow
     )
 
-    policy: Mapped[Policy] = relationship(back_populates="renewalTasks")
+    policy: Mapped[Policy] = relationship(
+        back_populates="renewalTasks",
+        foreign_keys=[policyId],
+    )
+    renewedPolicy: Mapped[Policy | None] = relationship(
+        foreign_keys=[renewedPolicyId],
+    )
 
     __table_args__ = (
         Index("RenewalTask_policyId_status_idx", "policyId", "status"),

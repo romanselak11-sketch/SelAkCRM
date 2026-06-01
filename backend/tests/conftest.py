@@ -1,51 +1,20 @@
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 
 from selakcrm.login_rate_limit import clear_all_login_rate_limit_state
-from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from selakcrm.database import get_db
-from selakcrm.validation_http import nest_validation_messages
+from selakcrm.domain.search import register_sqlite_search_functions
+from selakcrm.http_errors import register_http_exception_handlers
 from selakcrm.models import Base
 from selakcrm.routes.bundle import build_api_router
 from selakcrm.services.renewal_sync import RenewalSyncService
-
-
-async def _http_exc_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    if isinstance(exc.detail, dict):
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
-    msg = str(exc.detail) if exc.detail else exc.__class__.__name__
-    err = {
-        400: "Bad Request",
-        401: "Unauthorized",
-        403: "Forbidden",
-        404: "Not Found",
-        409: "Conflict",
-        422: "Unprocessable Entity",
-        429: "Too Many Requests",
-    }.get(exc.status_code, "Error")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"statusCode": exc.status_code, "message": msg, "error": err},
-    )
-
-
-async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    return JSONResponse(
-        status_code=400,
-        content={
-            "statusCode": 400,
-            "message": nest_validation_messages(exc.errors()),
-            "error": "Bad Request",
-        },
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -55,6 +24,11 @@ def _reset_login_rate_limit_state() -> None:
     yield
     clear_all_login_rate_limit_state()
     RenewalSyncService.invalidate_sync_cache()
+
+
+@event.listens_for(Engine, "connect")
+def _test_sqlite_search_functions(dbapi_connection, connection_record) -> None:
+    register_sqlite_search_functions(dbapi_connection)
 
 
 @pytest.fixture
@@ -86,8 +60,7 @@ def client() -> TestClient:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_exception_handler(StarletteHTTPException, _http_exc_handler)
-    app.add_exception_handler(RequestValidationError, _validation_handler)
+    register_http_exception_handlers(app)
     app.include_router(build_api_router())
     app.dependency_overrides[get_db] = override_get_db
 

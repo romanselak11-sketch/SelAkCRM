@@ -35,4 +35,5 @@ npm run dev
 
 ## CI
 
-В репозитории настроен GitHub Actions: pytest для backend.
+В репозитории настроен GitHub Actions: backend (`ruff`, `pytest`) и frontend (`lint`, `test`, `build`).
+Артефакты сборки (`backend/build`, `backend/dist`, `frontend/dist`) не коммитятся в репозиторий.
