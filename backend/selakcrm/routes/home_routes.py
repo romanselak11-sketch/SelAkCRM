@@ -1,21 +1,31 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session, joinedload
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import text
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from selakcrm.database import get_db
 from selakcrm.deps import JwtUser, get_current_user
 from selakcrm.schemas_base import StrictBody
-from selakcrm.domain.policy_dates import calendar_days_until_end
+from selakcrm.domain.renewal_task_order import sort_renewal_tasks_by_policy_date
 from selakcrm.models import Client, InsuranceCompany, InsuranceProduct, Policy, RenewalTask
 from selakcrm.routes.policies_routes import CreatePolicyIn, create_policy_from_home
 from selakcrm.routes.clients_routes import CreateClientIn, _validate_documents_url
-from selakcrm.serializers import _iso, client_row, company_row, policy_full, product_row, renewal_task_hours_minutes
+from selakcrm.serializers import _iso, client_row, company_row, policy_full, product_row, renewal_task_row_display
 from selakcrm.services.audit_log import audit_log
 from selakcrm.services.client_create import create_client_record
+from selakcrm.domain.search import client_search_where_clause, parse_search_tokens, policy_search_where_clause
+from selakcrm.services.manual_renewal_task import create_manual_renewal_task
 from selakcrm.services.renewal_sync import RenewalSyncService
+from selakcrm.services.renewal_task_comment import add_renewal_task_comment
+from selakcrm.services.renewal_task_comment_map import (
+    latest_renewal_task_comment,
+    renewal_task_comment_history,
+)
 from selakcrm.time_utils import utcnow
 
 router = APIRouter(prefix="/home", tags=["home"])
@@ -26,6 +36,7 @@ RENEWAL_INCLUDE = (
     joinedload(RenewalTask.policy).joinedload(Policy.product),
     joinedload(RenewalTask.renewedPolicy).joinedload(Policy.company),
     joinedload(RenewalTask.renewedPolicy).joinedload(Policy.product),
+    selectinload(RenewalTask.comments),
 )
 ACTIONABLE_RENEWAL_STATUSES = ("IN_PROGRESS", "AWAITING_ACTION", "POSTPONED", "AWAITING_FEEDBACK")
 ALLOWED_TASK_LIMITS = {10, 25, 50}
@@ -63,11 +74,7 @@ def _policy_summary(p: Policy) -> dict:
 
 def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
     p = t.policy
-    days_left = calendar_days_until_end(p.endDate, today)
-    if days_left >= 1:
-        display = {"kind": "days", "value": days_left}
-    else:
-        display = {"kind": "hm", "value": renewal_task_hours_minutes(p.endDate, today)}
+    display = renewal_task_row_display(t, today)
     renewed_policy = None
     if t.status == "RENEWED" and t.renewedPolicy is not None:
         renewed_policy = _policy_summary(t.renewedPolicy)
@@ -79,6 +86,9 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
         "statusChangedAt": t.statusChangedAt.isoformat() + "Z",
         "status": t.status,
         "declineReason": t.declineReason,
+        "feedbackComment": latest_renewal_task_comment(t, "AWAITING_FEEDBACK") or t.feedbackComment,
+        "postponeComment": latest_renewal_task_comment(t, "POSTPONE") or t.postponeComment,
+        "commentHistory": renewal_task_comment_history(t),
         "display": display,
         "client": {
             "id": p.client.id,
@@ -97,6 +107,7 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
             "insuranceSumS": p.insuranceSumS,
         },
         "renewedPolicy": renewed_policy,
+        "renewedPolicyId": t.renewedPolicyId,
     }
 
 
@@ -158,6 +169,59 @@ def policy_form_companies(
     return [company_row(ic) for ic in rows]
 
 
+@router.get("/policy-form/policies")
+def policy_form_policies(
+    _: Annotated[JwtUser, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+    q: str | None = None,
+    limit: str | None = None,
+) -> list[dict]:
+    """Поиск полисов для привязки ручной задачи продления."""
+    try:
+        lim = int(limit or "20")
+    except ValueError:
+        lim = 20
+    lim = max(1, min(lim, 50))
+    tokens = parse_search_tokens(q)
+    if not tokens:
+        rows = (
+            db.query(Policy)
+            .options(joinedload(Policy.client), joinedload(Policy.company), joinedload(Policy.product))
+            .filter(Policy.deletedAt.is_(None))
+            .order_by(Policy.createdAt.desc())
+            .limit(lim)
+            .all()
+        )
+    else:
+        cond_sql, params = policy_search_where_clause(tokens)
+        ids_sql = text(
+            f'SELECT p.id FROM "Policy" p INNER JOIN "Client" cl ON cl.id = p."clientId" '
+            f'WHERE p."deletedAt" IS NULL AND ({cond_sql}) ORDER BY p."createdAt" DESC LIMIT :lim'
+        )
+        ids = [r[0] for r in db.execute(ids_sql, {**params, "lim": lim}).fetchall()]
+        if not ids:
+            return []
+        rows_unordered = (
+            db.query(Policy)
+            .options(joinedload(Policy.client), joinedload(Policy.company), joinedload(Policy.product))
+            .filter(Policy.id.in_(ids))
+            .all()
+        )
+        by_id = {p.id: p for p in rows_unordered}
+        rows = [by_id[i] for i in ids if i in by_id]
+    return [
+        {
+            "id": p.id,
+            "number": p.number,
+            "endDate": _iso(p.endDate),
+            "clientLabel": f"{p.client.lastName} {p.client.firstName}",
+            "companyName": p.company.name,
+            "productName": p.product.name,
+        }
+        for p in rows
+    ]
+
+
 @router.get("/policy-form/companies/{company_id}/products")
 def policy_form_products(
     company_id: str,
@@ -183,11 +247,11 @@ def renewal_tasks(
         db.query(RenewalTask)
         .options(*RENEWAL_INCLUDE)
         .join(Policy, RenewalTask.policyId == Policy.id)
-        .filter(Policy.deletedAt.is_(None), RenewalTask.status.in_(("IN_PROGRESS", "AWAITING_ACTION")))
-        .order_by(RenewalTask.createdAt)
+        .filter(Policy.deletedAt.is_(None), RenewalTask.status.in_(ACTIONABLE_RENEWAL_STATUSES))
         .all()
     )
     today = utcnow()
+    tasks = sort_renewal_tasks_by_policy_date(tasks, today)
     out = []
     for t in tasks:
         row = _map_renewal_row(t, today)
@@ -200,10 +264,78 @@ def renewal_tasks(
                 "client": row["client"],
                 "policy": row["policy"],
                 "declineReason": row["declineReason"],
+                "feedbackComment": row["feedbackComment"],
+                "postponeComment": row["postponeComment"],
+                "commentHistory": row["commentHistory"],
                 "renewedPolicy": row["renewedPolicy"],
             }
         )
     return out
+
+
+class CreateManualRenewalTaskIn(StrictBody):
+    policyId: str | None = None
+    clientId: str | None = None
+    companyId: str | None = None
+    productId: str | None = None
+    number: str | None = Field(default=None, min_length=1)
+    insuredObject: str | None = Field(default=None, min_length=1)
+    category: str | None = None
+    source: str | None = None
+    insuranceSumS: str | None = None
+    premiumPercent: str | None = None
+    premiumRubles: str | None = None
+    issueDate: str | None = Field(default=None, min_length=10)
+    endDate: str | None = Field(default=None, min_length=10)
+
+    @model_validator(mode="after")
+    def validate_mode(self) -> CreateManualRenewalTaskIn:
+        if self.policyId:
+            return self
+        required = (
+            "clientId",
+            "companyId",
+            "productId",
+            "number",
+            "insuredObject",
+            "endDate",
+        )
+        missing = [f for f in required if not getattr(self, f)]
+        if missing:
+            raise ValueError("Для нового полиса заполните клиента, компанию, продукт, номер, объект и дату окончания")
+        return self
+
+
+@router.post("/tasks")
+def create_manual_task(
+    body: CreateManualRenewalTaskIn,
+    user: Annotated[JwtUser, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+) -> dict:
+    _require_policy_form_client_create(user)
+    policy_dto = None
+    if not body.policyId:
+        policy_dto = CreatePolicyIn(
+            clientId=body.clientId,  # type: ignore[arg-type]
+            companyId=body.companyId,  # type: ignore[arg-type]
+            productId=body.productId,  # type: ignore[arg-type]
+            number=body.number,  # type: ignore[arg-type]
+            insuredObject=body.insuredObject,  # type: ignore[arg-type]
+            category=body.category,
+            source=body.source,
+            insuranceSumS=body.insuranceSumS,
+            premiumPercent=body.premiumPercent,
+            premiumRubles=body.premiumRubles,
+            issueDate=body.issueDate,
+            endDate=body.endDate,  # type: ignore[arg-type]
+        )
+    task = create_manual_renewal_task(
+        db,
+        actor_id=user.sub,
+        policy_id=body.policyId,
+        policy_dto=policy_dto,
+    )
+    return _map_renewal_row(task, utcnow())
 
 
 @router.get("/tasks")
@@ -212,6 +344,7 @@ def tasks_registry(
     db: Session = Depends(get_db),
     page: str | None = None,
     limit: str | None = None,
+    q: str | None = None,
 ) -> dict:
     RenewalSyncService(db).sync_cached()
     p, lim = _page_limit(page, limit)
@@ -221,6 +354,16 @@ def tasks_registry(
         .join(Policy, RenewalTask.policyId == Policy.id)
         .filter(Policy.deletedAt.is_(None))
     )
+    tokens = parse_search_tokens(q)
+    if tokens:
+        cond_sql, params = client_search_where_clause(tokens)
+        client_ids_sql = text(
+            f'SELECT c.id FROM "Client" c WHERE c."deletedAt" IS NULL AND ({cond_sql})'
+        )
+        client_ids = [r[0] for r in db.execute(client_ids_sql, params).fetchall()]
+        if not client_ids:
+            return {"items": [], "total": 0, "page": p, "limit": lim}
+        base_q = base_q.filter(Policy.clientId.in_(client_ids))
     total = base_q.count()
     tasks = (
         base_q
@@ -284,6 +427,7 @@ def ack_notification(
 class PostponeIn(StrictBody):
     mode: str = Field(pattern="^(simple|feedback)$")
     until: str = Field(min_length=10)
+    comment: str | None = Field(default=None, max_length=1000)
 
 
 @router.post("/renewal-tasks/{task_id}/postpone")
@@ -303,10 +447,29 @@ def postpone_task(
         until = until.replace(tzinfo=None)  # noqa: DTZ007
     if until <= utcnow():
         raise HTTPException(400, detail={"statusCode": 400, "message": "Укажите дату и время в будущем", "error": "Bad Request"})
+    comment = (body.comment or "").strip()
+    if not comment:
+        msg = (
+            "Укажите комментарий: что ждём от клиента (1–1000 символов)"
+            if body.mode == "feedback"
+            else "Укажите комментарий к отсрочке (1–1000 символов)"
+        )
+        raise HTTPException(
+            400,
+            detail={"statusCode": 400, "message": msg, "error": "Bad Request"},
+        )
     next_status = "AWAITING_FEEDBACK" if body.mode == "feedback" else "POSTPONED"
     now = utcnow()
     t.status = next_status
     t.snoozedUntil = until
+    comment_kind = "AWAITING_FEEDBACK" if body.mode == "feedback" else "POSTPONE"
+    add_renewal_task_comment(db, task_id=task_id, kind=comment_kind, text=comment)
+    if body.mode == "feedback":
+        t.feedbackComment = comment
+        t.postponeComment = None
+    else:
+        t.postponeComment = comment
+        t.feedbackComment = None
     t.statusChangedAt = now
     audit_log(
         db,
@@ -314,7 +477,7 @@ def postpone_task(
         action="RENEWAL_POSTPONED",
         entity_type="RenewalTask",
         entity_id=task_id,
-        payload={"policyId": t.policyId, "mode": body.mode, "until": body.until},
+        payload={"policyId": t.policyId, "mode": body.mode, "until": body.until, "comment": comment or None},
     )
     return {"ok": True}
 
@@ -338,6 +501,7 @@ def decline_task(
     now = utcnow()
     t.status = "CLIENT_DECLINED"
     t.declineReason = body.reason
+    add_renewal_task_comment(db, task_id=task_id, kind="DECLINE", text=body.reason)
     t.snoozedUntil = None
     t.statusChangedAt = now
     audit_log(

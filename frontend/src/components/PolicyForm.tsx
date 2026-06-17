@@ -40,6 +40,8 @@ export type PolicyFormProps = {
   initialClientId?: string;
   /** Редактирование существующего полиса (только SUPER_ADMIN / SUPER_MANAGER, маршрут /policies) */
   policyId?: string;
+  /** Создание задачи продления с новым полисом (раздел «Задачи»). */
+  createManualTask?: boolean;
   onSuccess: () => void;
   onCancel: () => void;
 };
@@ -102,6 +104,7 @@ export function PolicyForm({
   taskId,
   initialClientId,
   policyId,
+  createManualTask = false,
   onSuccess,
   onCancel,
 }: PolicyFormProps) {
@@ -302,6 +305,8 @@ export function PolicyForm({
           method: 'POST',
           body: JSON.stringify(body),
         });
+      } else if (createManualTask) {
+        await api('/home/tasks', { method: 'POST', body: JSON.stringify(body) });
       } else if (me?.role === 'MANAGER') {
         await api('/home/policies', { method: 'POST', body: JSON.stringify(body) });
       } else {
@@ -398,7 +403,7 @@ export function PolicyForm({
       ) : null}
       <div className="form-actions">
         <button className="btn btn--primary" type="submit">
-          Сохранить
+          {createManualTask ? 'Создать задачу' : 'Сохранить'}
         </button>
         <button type="button" className="btn btn--ghost" onClick={onCancel}>
           Отмена

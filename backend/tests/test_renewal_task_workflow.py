@@ -47,19 +47,87 @@ def _seed_open_task(client, headers: dict[str, str]) -> tuple[str, str, str]:
     return task_id, person["id"], pol["id"]
 
 
+def test_feedback_postpone_requires_and_stores_comment(client):
+    headers = _auth_headers(client)
+    task_id, _, _ = _seed_open_task(client, headers)
+    until = (utcnow() + timedelta(days=2)).replace(microsecond=0).isoformat() + "Z"
+    bad = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "feedback", "until": until},
+        headers=headers,
+    )
+    assert bad.status_code == 400
+    ok = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "feedback", "until": until, "comment": "Ждём сканы паспорта"},
+        headers=headers,
+    )
+    assert ok.status_code == 200
+    tasks = client.get("/api/v1/home/renewal-tasks", headers=headers).json()
+    row = next(x for x in tasks if x["taskId"] == task_id)
+    assert row["status"] == "AWAITING_FEEDBACK"
+    assert row["feedbackComment"] == "Ждём сканы паспорта"
+    assert len(row["commentHistory"]) == 1
+    assert row["commentHistory"][0]["text"] == "Ждём сканы паспорта"
+
+
+def test_simple_postpone_requires_and_stores_comment(client):
+    headers = _auth_headers(client)
+    task_id, _, _ = _seed_open_task(client, headers)
+    until = (utcnow() + timedelta(days=3)).replace(microsecond=0).isoformat() + "Z"
+    bad = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "simple", "until": until},
+        headers=headers,
+    )
+    assert bad.status_code == 400
+    ok = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "simple", "until": until, "comment": "Перезвонить в понедельник"},
+        headers=headers,
+    )
+    assert ok.status_code == 200
+    tasks = client.get("/api/v1/home/renewal-tasks", headers=headers).json()
+    row = next(x for x in tasks if x["taskId"] == task_id)
+    assert row["status"] == "POSTPONED"
+    assert row["postponeComment"] == "Перезвонить в понедельник"
+    assert row["commentHistory"][0]["kind"] == "POSTPONE"
+
+
+def test_postpone_twice_appends_comment_history(client):
+    headers = _auth_headers(client)
+    task_id, _, _ = _seed_open_task(client, headers)
+    until = (utcnow() + timedelta(days=3)).replace(microsecond=0).isoformat() + "Z"
+    client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "simple", "until": until, "comment": "Первый"},
+        headers=headers,
+    )
+    client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "feedback", "until": until, "comment": "Второй"},
+        headers=headers,
+    )
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert len(row["commentHistory"]) == 2
+    assert row["commentHistory"][0]["text"] == "Первый"
+    assert row["commentHistory"][1]["text"] == "Второй"
+
+
 def test_postponed_task_can_be_postponed_again(client):
     headers = _auth_headers(client)
     task_id, _, _ = _seed_open_task(client, headers)
     until = (utcnow() + timedelta(days=3)).replace(microsecond=0).isoformat() + "Z"
     r1 = client.post(
         f"/api/v1/home/renewal-tasks/{task_id}/postpone",
-        json={"mode": "simple", "until": until},
+        json={"mode": "simple", "until": until, "comment": "Первый комментарий"},
         headers=headers,
     )
     assert r1.status_code == 200
     r2 = client.post(
         f"/api/v1/home/renewal-tasks/{task_id}/postpone",
-        json={"mode": "simple", "until": until},
+        json={"mode": "simple", "until": until, "comment": "Второй комментарий"},
         headers=headers,
     )
     assert r2.status_code == 200

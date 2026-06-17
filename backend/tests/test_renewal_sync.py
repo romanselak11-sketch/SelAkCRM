@@ -147,6 +147,44 @@ def test_wake_snoozed_then_visible_status():
         db.close()
 
 
+def test_sync_recreates_task_for_expired_policy_without_terminal():
+    SessionLocal = _session_factory()
+    db = SessionLocal()
+    try:
+        p = _seed_policy_in_renewal_window(db, days_until_end=15)
+        RenewalSyncService(db).sync()
+        db.commit()
+        db.query(RenewalTask).delete()
+        db.commit()
+        p.endDate = start_of_day(utcnow()) - timedelta(days=10)
+        db.commit()
+        RenewalSyncService(db).sync()
+        db.commit()
+        tasks = db.query(RenewalTask).filter(RenewalTask.policyId == p.id).all()
+        assert len(tasks) == 1
+        assert tasks[0].status == "IN_PROGRESS"
+    finally:
+        db.close()
+
+
+def test_sync_keeps_open_task_after_policy_expired():
+    SessionLocal = _session_factory()
+    db = SessionLocal()
+    try:
+        p = _seed_policy_in_renewal_window(db, days_until_end=15)
+        RenewalSyncService(db).sync()
+        db.commit()
+        t = db.query(RenewalTask).one()
+        p.endDate = start_of_day(utcnow()) - timedelta(days=5)
+        db.commit()
+        RenewalSyncService(db).sync()
+        db.commit()
+        assert db.query(RenewalTask).filter(RenewalTask.id == t.id).count() == 1
+        assert db.query(RenewalTask).one().status == "IN_PROGRESS"
+    finally:
+        db.close()
+
+
 def test_sync_cached_throttles_full_sync(monkeypatch):
     SessionLocal = _session_factory()
     db = SessionLocal()

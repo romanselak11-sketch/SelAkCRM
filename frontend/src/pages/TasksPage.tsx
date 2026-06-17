@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { api } from '../api';
+import { HorizontalScrollWrap } from '../components/HorizontalScrollWrap';
+import { ManualRenewalTaskModal } from '../components/ManualRenewalTaskModal';
+import { PaginationControls } from '../components/PaginationControls';
 import { PageHeading } from '../components/PageHeading';
 import { RenewalTaskModal, type RenewalTaskRow } from '../components/RenewalTaskModal';
+import { useAuth } from '../auth';
+import { formatRenewalTaskDisplay, renewalTaskDeadlineClass } from '../domain/renewal-task-display';
 import { RENEWAL_STATUS_LABELS, renewalStatusBadgeClass } from '../domain/renewal-task-status';
+import { formatRenewalPolicyLabel } from '../domain/renewal-task-policy-label';
 import { setDocumentTitle } from '../utils/documentTitle';
 
 export type RenewalTaskRegistryRow = RenewalTaskRow & {
@@ -32,13 +39,17 @@ function formatDateTime(iso: string): string {
 }
 
 export function TasksPage() {
+  const { me } = useAuth();
   const [rows, setRows] = useState<RenewalTaskRegistryRow[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<RenewalTaskRegistryRow | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState<(typeof TASK_PAGE_LIMITS)[number]>(25);
   const [total, setTotal] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientSearchApplied, setClientSearchApplied] = useState('');
 
   useEffect(() => {
     setDocumentTitle('Задачи');
@@ -47,6 +58,8 @@ export function TasksPage() {
   useEffect(() => {
     let cancelled = false;
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const q = clientSearchApplied.trim();
+    if (q) qs.set('q', q);
     void api<TasksResponse>(`/home/tasks?${qs.toString()}`)
       .then((data) => {
         if (cancelled) return;
@@ -62,17 +75,38 @@ export function TasksPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, limit, reloadNonce]);
+  }, [page, limit, reloadNonce, clientSearchApplied]);
+
+  function submitClientSearch(e: FormEvent) {
+    e.preventDefault();
+    setPage(1);
+    setClientSearchApplied(clientSearch.trim());
+  }
+
+  function clearClientSearch() {
+    setClientSearch('');
+    setClientSearchApplied('');
+    setPage(1);
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const canCreateTask =
+    me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER' || me?.role === 'MANAGER';
 
   return (
-    <div className="page">
+    <div className="page page--tasks-registry">
       <header className="page-header">
         <PageHeading
           title="Задачи"
-          hint="Реестр задач продления: номер, даты создания и смены статуса."
+          hint="Реестр задач продления: срок, статус, клиент и полис."
         />
+        {canCreateTask && (
+          <div className="page-actions">
+            <button type="button" className="btn btn--primary" onClick={() => setCreateOpen(true)}>
+              Создать задачу
+            </button>
+          </div>
+        )}
       </header>
 
       {err && (
@@ -80,6 +114,12 @@ export function TasksPage() {
           {err}
         </p>
       )}
+
+      <ManualRenewalTaskModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => setReloadNonce((prev) => prev + 1)}
+      />
 
       <RenewalTaskModal
         task={selected}
@@ -92,7 +132,27 @@ export function TasksPage() {
         <div className="card-header">
           <h2 className="card-title">Список задач</h2>
           {!err && (
-            <div className="table-controls">
+            <div className="table-controls table-controls--tasks-registry">
+              <form className="tasks-registry-search" onSubmit={submitClientSearch}>
+                <label className="field field--inline tasks-registry-search__field">
+                  <span className="field-label">Поиск по ФИО</span>
+                  <input
+                    type="search"
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    placeholder="Фамилия, имя…"
+                    autoComplete="off"
+                  />
+                </label>
+                <button type="submit" className="btn btn--ghost btn--sm">
+                  Найти
+                </button>
+                {clientSearchApplied ? (
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={clearClientSearch}>
+                    Сбросить
+                  </button>
+                ) : null}
+              </form>
               <label className="field field--inline">
                 <span className="field-label">На странице</span>
                 <select
@@ -115,7 +175,7 @@ export function TasksPage() {
         </div>
         {!err && (
           <div>
-            <div className="data-table-wrap">
+            <HorizontalScrollWrap className="data-table-wrap">
               <table className="data-table data-table--task-registry">
                 <thead>
                   <tr>
@@ -123,16 +183,20 @@ export function TasksPage() {
                     <th>Создана</th>
                     <th>Статус</th>
                     <th>Клиент</th>
-                    <th>Полис / оформленный</th>
+                    <th>Текущий полис</th>
+                    <th>Новый полис</th>
                     <th>Объект страхования</th>
+                    <th>Срок</th>
                     <th>Причина отказа</th>
+                    <th>Ожидание от клиента</th>
+                    <th>Комментарий (отложена)</th>
                     <th>Статус изменён</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
                     <tr className="data-table__empty-row">
-                      <td colSpan={8}>
+                      <td colSpan={12}>
                         <p className="empty-hint empty-hint--in-cell">Задач пока нет.</p>
                       </td>
                     </tr>
@@ -162,24 +226,37 @@ export function TasksPage() {
                         <td>
                           {t.client.lastName} {t.client.firstName} {t.client.middleName ?? ''}
                         </td>
-                        <td>
-                          {t.status === 'RENEWED' && t.renewedPolicy ? (
-                            <>
-                              <span className="task-registry-renewed-label">Оформлен: </span>
-                              {t.renewedPolicy.number} · {t.renewedPolicy.companyName}
-                            </>
-                          ) : (
-                            <>
-                              {t.policy.number} · {t.policy.companyName} / {t.policy.productName}
-                            </>
-                          )}
+                        <td className="data-table__policy-cell">
+                          {formatRenewalPolicyLabel(t.policy)}
+                        </td>
+                        <td className="data-table__policy-cell">
+                          {t.status === 'RENEWED' && t.renewedPolicy
+                            ? formatRenewalPolicyLabel(t.renewedPolicy)
+                            : '—'}
                         </td>
                         <td>{t.policy.insuredObject?.trim() || '—'}</td>
+                        <td>
+                          <span className={renewalTaskDeadlineClass(t.display)}>
+                            {formatRenewalTaskDisplay(t.display)}
+                          </span>
+                        </td>
                         <td
                           className="data-table__decline-reason"
                           title={t.declineReason?.trim() || undefined}
                         >
                           {t.declineReason?.trim() ? t.declineReason : '—'}
+                        </td>
+                        <td
+                          className="data-table__decline-reason"
+                          title={t.feedbackComment?.trim() || undefined}
+                        >
+                          {t.feedbackComment?.trim() ? t.feedbackComment : '—'}
+                        </td>
+                        <td
+                          className="data-table__decline-reason"
+                          title={t.postponeComment?.trim() || undefined}
+                        >
+                          {t.postponeComment?.trim() ? t.postponeComment : '—'}
                         </td>
                         <td>{formatDateTime(t.statusChangedAt)}</td>
                       </tr>
@@ -187,27 +264,19 @@ export function TasksPage() {
                   )}
                 </tbody>
               </table>
-            </div>
-            <div className="table-pagination">
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-              >
-                Назад
-              </button>
-              <span className="empty-hint">
-                Страница {page} из {totalPages} · всего {total}
-              </span>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page >= totalPages}
-              >
-                Вперёд
-              </button>
+            </HorizontalScrollWrap>
+            <div className="audit-footer audit-footer--nav-only">
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                ariaLabel="Страницы реестра задач"
+                center={
+                  <span className="pagination-controls__meta">
+                    Страница {page} из {totalPages} · всего {total}
+                  </span>
+                }
+              />
             </div>
           </div>
         )}

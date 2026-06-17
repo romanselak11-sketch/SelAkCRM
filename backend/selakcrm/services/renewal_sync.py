@@ -69,6 +69,12 @@ class RenewalSyncService:
             RenewalTask.policyId == Policy.id,
             RenewalTask.status.in_(OPEN_RENEWAL_STATUSES),
         )
+        terminal_task_exists = exists().where(
+            RenewalTask.policyId == Policy.id,
+            RenewalTask.status.in_(("RENEWED", "CLIENT_DECLINED")),
+        )
+        # Просроченные полисы без завершённой задачи — восстановление ранее удалённых задач.
+        expired_without_terminal = (Policy.endDate < today_start) & ~terminal_task_exists
 
         policies = (
             self.db.query(Policy)
@@ -83,6 +89,7 @@ class RenewalSyncService:
                 or_(
                     (Policy.endDate >= today_start) & (Policy.endDate <= renewal_window_end),
                     open_task_exists,
+                    expired_without_terminal,
                 ),
             )
             .all()
@@ -98,10 +105,6 @@ class RenewalSyncService:
                 self._remove_pending_tasks(p.id)
                 continue
 
-            if not is_in_renewal_window(p.endDate, today):
-                self._remove_pending_tasks(p.id)
-                continue
-
             tasks = list(p.renewalTasks)
             terminal = any(t.status in ("RENEWED", "CLIENT_DECLINED") for t in tasks)
             if terminal:
@@ -111,6 +114,7 @@ class RenewalSyncService:
                 (t for t in tasks if t.status not in ("RENEWED", "CLIENT_DECLINED")),
                 None,
             )
+
             if not open_task:
                 max_num = self.db.query(func.max(RenewalTask.taskNumber)).scalar()
                 task_number = (max_num or 0) + 1
@@ -127,7 +131,7 @@ class RenewalSyncService:
                 self.db.flush()
                 self._notify_new_task_for_all_users(task.id, active_user_ids)
                 log.debug("Created renewal task %s for policy %s", task.id, p.id)
-            else:
+            elif is_in_renewal_window(p.endDate, today):
                 days_left = calendar_days_until_end(p.endDate, today)
                 if 0 <= days_left <= 3:
                     self._notify_urgent_if_needed(p.id, today, active_user_ids)

@@ -12,6 +12,8 @@ type ModalProps = {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /** When true, clicking the backdrop does not close the dialog */
   disableBackdropClose?: boolean;
+  /** Дополнительный класс для области контента (например, без общего скролла). */
+  bodyClassName?: string;
 };
 
 export function Modal({
@@ -22,6 +24,7 @@ export function Modal({
   children,
   size = 'md',
   disableBackdropClose,
+  bodyClassName,
 }: ModalProps) {
   const titleId = useId();
   const descId = useId();
@@ -123,7 +126,7 @@ export function Modal({
             ×
           </button>
         </header>
-        <div className="modal-body">{children}</div>
+        <div className={bodyClassName ? `modal-body ${bodyClassName}` : 'modal-body'}>{children}</div>
       </div>
     </div>,
     document.body,

@@ -6,6 +6,7 @@ import { NotificationToasts } from '../components/NotificationToasts';
 import { PageHeading } from '../components/PageHeading';
 import { PolicyForm } from '../components/PolicyForm';
 import { RenewalTaskModal, type RenewalTaskRow } from '../components/RenewalTaskModal';
+import { formatRenewalTaskDisplay, renewalTaskDeadlineClass } from '../domain/renewal-task-display';
 import { RENEWAL_STATUS_LABELS, renewalStatusBadgeClass } from '../domain/renewal-task-status';
 import { setDocumentTitle } from '../utils/documentTitle';
 
@@ -202,7 +203,9 @@ export function HomePage() {
                     </td>
                     <td>{t.policy.insuredObject?.trim() || '—'}</td>
                     <td>
-                      {t.display.kind === 'days' ? `${t.display.value} дн.` : t.display.value}
+                      <span className={renewalTaskDeadlineClass(t.display)}>
+                        {formatRenewalTaskDisplay(t.display)}
+                      </span>
                     </td>
                   </tr>
                 ))

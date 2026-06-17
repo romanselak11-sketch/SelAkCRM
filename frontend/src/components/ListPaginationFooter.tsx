@@ -1,4 +1,5 @@
 import { LIST_PAGE_SIZES, type ListPageSize, visibleListPages } from '../utils/listPagination';
+import { PaginationControls } from './PaginationControls';
 
 export type ListPaginationFooterProps = {
   total: number;
@@ -23,17 +24,13 @@ export function ListPaginationFooter({
     <div className={total > 0 ? 'audit-footer' : 'audit-footer audit-footer--page-size-only'}>
       {total > 0 ? (
         <div className="audit-pagination-center">
-          <nav className="audit-pagination-nav" aria-label={navAriaLabel}>
-            <div className="audit-pagination-controls">
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                disabled={page <= 1}
-                onClick={() => onPageChange(Math.max(1, page - 1))}
-              >
-                Назад
-              </button>
-              <div className="audit-pagination-pages" role="list">
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            ariaLabel={navAriaLabel}
+            center={
+              <div className="pagination-controls__pages" role="list">
                 {visibleListPages(page, totalPages).map((entry, i) =>
                   entry === 'gap' ? (
                     <span key={`gap-${i}`} className="audit-pagination-gap" aria-hidden>
@@ -53,16 +50,8 @@ export function ListPaginationFooter({
                   ),
                 )}
               </div>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                disabled={page >= totalPages}
-                onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-              >
-                Вперёд
-              </button>
-            </div>
-          </nav>
+            }
+          />
         </div>
       ) : null}
       <div className="field audit-footer__page-size">

@@ -166,6 +166,8 @@ class RenewalTask(Base):
     statusChangedAt: Mapped[datetime] = mapped_column("statusChangedAt", DateTime, default=utcnow)
     snoozedUntil: Mapped[datetime | None] = mapped_column("snoozedUntil", DateTime, nullable=True)
     declineReason: Mapped[str | None] = mapped_column("declineReason", String, nullable=True)
+    feedbackComment: Mapped[str | None] = mapped_column("feedbackComment", String, nullable=True)
+    postponeComment: Mapped[str | None] = mapped_column("postponeComment", String, nullable=True)
     renewedPolicyId: Mapped[str | None] = mapped_column(
         "renewedPolicyId", String, ForeignKey("Policy.id"), nullable=True
     )
@@ -181,11 +183,30 @@ class RenewalTask(Base):
     renewedPolicy: Mapped[Policy | None] = relationship(
         foreign_keys=[renewedPolicyId],
     )
+    comments: Mapped[list[RenewalTaskComment]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="RenewalTaskComment.createdAt",
+    )
 
     __table_args__ = (
         Index("RenewalTask_policyId_status_idx", "policyId", "status"),
         Index("RenewalTask_snoozedUntil_idx", "snoozedUntil"),
     )
+
+
+class RenewalTaskComment(Base):
+    __tablename__ = "RenewalTaskComment"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    taskId: Mapped[str] = mapped_column("taskId", String, ForeignKey("RenewalTask.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String)
+    text: Mapped[str] = mapped_column(String)
+    createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime, default=utcnow)
+
+    task: Mapped[RenewalTask] = relationship(back_populates="comments")
+
+    __table_args__ = (Index("RenewalTaskComment_taskId_createdAt_idx", "taskId", "createdAt"),)
 
 
 class AuditEvent(Base):

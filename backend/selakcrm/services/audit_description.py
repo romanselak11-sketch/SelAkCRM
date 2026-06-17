@@ -166,7 +166,11 @@ def describe_audit_event(
     if action == "RENEWAL_POSTPONED":
         mode = _str(p.get("mode"))
         m = "ожидание обратной связи" if mode == "feedback" else "отсрочка"
-        return f"{actor} отложил задачу продления ({m})."
+        comment = _str(p.get("comment")) or ""
+        hint = ""
+        if comment:
+            hint = f" Комментарий: {comment[:120]}{'…' if len(comment) > 120 else ''}"
+        return f"{actor} отложил задачу продления ({m}).{hint}"
     if action == "RENEWAL_RENEWED":
         new_id = _str(p.get("newPolicyId"))
         tail = f" (новый полис id: {new_id})" if new_id else ""

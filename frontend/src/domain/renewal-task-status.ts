@@ -30,3 +30,19 @@ export function canActOnRenewalTask(status: RenewalTaskStatusApi): boolean {
     status === 'AWAITING_FEEDBACK'
   );
 }
+
+/** Редактирование оформленного полиса завершённой задачи (супер-админ / супер-менеджер). */
+export function canEditRenewedRenewalTask(role: string | undefined): boolean {
+  return role === 'SUPER_ADMIN' || role === 'SUPER_MANAGER';
+}
+
+/** ID полиса для редактирования завершённой задачи: новый → исходный. */
+export function resolveRenewalTaskEditablePolicyId(task: {
+  status: RenewalTaskStatusApi;
+  policyId: string;
+  renewedPolicyId?: string | null;
+  renewedPolicy?: { id: string } | null;
+}): string | undefined {
+  if (task.status !== 'RENEWED') return undefined;
+  return task.renewedPolicy?.id ?? task.renewedPolicyId ?? task.policyId;
+}

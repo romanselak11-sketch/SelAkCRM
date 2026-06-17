@@ -371,7 +371,7 @@ export function SettingsPage() {
         <div className="card-header">
           <h2 className="card-title">Журнал аудита</h2>
         </div>
-        <div className="row" style={{ marginBottom: '1rem' }}>
+        <div className="stack stack--row stack--gap-3 u-mb-4">
           <label className="field" style={{ flex: '1 1 200px' }}>
             <span className="field-label">Месяц</span>
             <select value={selMonth ?? ''} onChange={(e) => setSelMonth(e.target.value || null)}>

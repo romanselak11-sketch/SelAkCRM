@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from '../api';
 import { formatIsoDateRu } from '../utils/formatters';
 import { Modal } from './Modal';
+import { PaginationControls } from './PaginationControls';
 
 type ClientPhone = { id: string; phone: string };
 
@@ -196,27 +197,19 @@ export function ClientDetailsModal({
                     ))}
                   </select>
                 </label>
-                <div className="client-details__pagination-controls">
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    disabled={!canGoPrev || (requestKey !== null && result.key !== requestKey)}
-                    onClick={() => setPolicyPage((prev) => Math.max(1, prev - 1))}
-                  >
-                    Назад
-                  </button>
-                  <span className="client-details__pagination-meta">
-                    Стр. {policyPage} из {totalPolicyPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    disabled={!canGoNext || (requestKey !== null && result.key !== requestKey)}
-                    onClick={() => setPolicyPage((prev) => Math.min(totalPolicyPages, prev + 1))}
-                  >
-                    Вперёд
-                  </button>
-                </div>
+                <PaginationControls
+                  page={policyPage}
+                  totalPages={totalPolicyPages}
+                  onPageChange={setPolicyPage}
+                  ariaLabel="Страницы полисов клиента"
+                  prevDisabled={!canGoPrev || (requestKey !== null && result.key !== requestKey)}
+                  nextDisabled={!canGoNext || (requestKey !== null && result.key !== requestKey)}
+                  center={
+                    <span className="pagination-controls__meta client-details__pagination-meta">
+                      Стр. {policyPage} из {totalPolicyPages}
+                    </span>
+                  }
+                />
               </div>
             )}
           </section>
