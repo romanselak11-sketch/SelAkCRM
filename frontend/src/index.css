@@ -429,14 +429,14 @@ main {
   line-height: 1.2;
 }
 
-.page-hint {
+.hint-tip {
   position: relative;
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.page-hint__btn {
+.hint-tip__btn {
   display: inline-grid;
   place-items: center;
   width: 1.375rem;
@@ -458,19 +458,19 @@ main {
     color 0.15s ease;
 }
 
-.page-hint__btn:hover,
-.page-hint__btn:focus-visible {
+.hint-tip__btn:hover,
+.hint-tip__btn:focus-visible {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
 }
 
-.page-hint__btn:focus-visible {
+.hint-tip__btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.page-hint__tooltip {
+.hint-tip__tooltip {
   position: absolute;
   z-index: 30;
   left: 50%;
@@ -497,10 +497,18 @@ main {
     visibility 0.15s ease;
 }
 
-.page-hint:hover .page-hint__tooltip,
-.page-hint:focus-within .page-hint__tooltip {
+.hint-tip:hover .hint-tip__tooltip,
+.hint-tip:focus-within .hint-tip__tooltip {
   opacity: 1;
   visibility: visible;
+}
+
+/* Совместимость со старыми селекторами страницы аналитики */
+.page-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .page-sub {
@@ -1032,19 +1040,56 @@ main {
   white-space: pre-wrap;
 }
 
-.field-hint {
-  display: block;
-  font-size: 0.8125rem;
-  line-height: 1.35;
-  color: var(--fg-muted);
-  margin-top: var(--space-2);
-}
-
 .field-input-wrap {
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
+}
+
+.field-input-wrap__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.field-input-wrap__row > input,
+.field-input-wrap__row > textarea,
+.field-input-wrap__row > select {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-input-wrap__row--textarea {
+  align-items: flex-start;
+}
+
+.field-input-wrap__row--textarea .hint-tip {
+  margin-top: 0.5rem;
+}
+
+.field-input-wrap__row .hint-tip__tooltip,
+.field-label .hint-tip__tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.field-control-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.field-control-row > input,
+.field-control-row > select,
+.field-control-row > textarea {
+  flex: 1;
   min-width: 0;
 }
 
@@ -1097,10 +1142,6 @@ main {
   }
 }
 
-.field-input-wrap .field-hint {
-  margin-top: var(--space-2);
-}
-
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1125,6 +1166,9 @@ main {
 }
 
 .field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--fg-muted);
@@ -1290,7 +1334,7 @@ input[type='radio']:focus-visible {
 }
 
 label.field > span.field-label {
-  display: block;
+  display: inline-flex;
 }
 
 /* Кастомный выпадающий список: ~10 строк + прокрутка (PolicyForm и др.) */
@@ -2688,8 +2732,8 @@ a.primary:focus-visible {
 }
 
 .analytics-page .page-title-row .page-title,
-.analytics-page .page-hint__btn,
-.analytics-page .page-hint__tooltip {
+.analytics-page .hint-tip__btn,
+.analytics-page .hint-tip__tooltip {
   font-family: var(--font);
 }
 

@@ -20,6 +20,7 @@ type ProductOpt = {
   id: string;
   name: string;
   defaultPremiumPct?: string | number | null;
+  defaultPremiumRubles?: string | number | null;
 };
 
 type PolicyDetail = {
@@ -137,6 +138,12 @@ export function PolicyForm({
       } else {
         setPremiumPercent('');
       }
+      const rub = p.defaultPremiumRubles;
+      if (rub !== null && rub !== undefined && rub !== '') {
+        setPremiumRubles(formatMoneyForField(rub));
+      } else {
+        setPremiumRubles('0');
+      }
     },
     [policyId],
   );
@@ -253,13 +260,23 @@ export function PolicyForm({
   const productOptions = useMemo(
     () =>
       products.map((p) => {
-        const pct =
+        const parts: string[] = [];
+        if (
           p.defaultPremiumPct !== null &&
           p.defaultPremiumPct !== undefined &&
           p.defaultPremiumPct !== ''
-            ? ` — ${p.defaultPremiumPct}%`
-            : '';
-        return { value: p.id, label: `${p.name}${pct}` };
+        ) {
+          parts.push(`${p.defaultPremiumPct}%`);
+        }
+        if (
+          p.defaultPremiumRubles !== null &&
+          p.defaultPremiumRubles !== undefined &&
+          p.defaultPremiumRubles !== ''
+        ) {
+          parts.push(`${formatMoneyForField(p.defaultPremiumRubles)} ₽`);
+        }
+        const suffix = parts.length > 0 ? ` — ${parts.join(', ')}` : '';
+        return { value: p.id, label: `${p.name}${suffix}` };
       }),
     [products],
   );

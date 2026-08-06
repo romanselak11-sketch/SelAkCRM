@@ -188,6 +188,7 @@ class ProductIn(StrictBody):
     name: str = Field(min_length=1)
     category: str | None = None
     defaultPremiumPct: str | None = None
+    defaultPremiumRubles: str | None = None
 
 
 @router.post("/insurance-companies/{company_id}/products")
@@ -205,6 +206,7 @@ def create_product(
         name=body.name,
         category=body.category,
         defaultPremiumPct=body.defaultPremiumPct,
+        defaultPremiumRubles=body.defaultPremiumRubles,
         createdAt=now,
         updatedAt=now,
     )
@@ -225,6 +227,7 @@ class UpdateProductIn(StrictBody):
     name: str | None = Field(default=None, min_length=1)
     category: str | None = None
     defaultPremiumPct: str | None = None
+    defaultPremiumRubles: str | None = None
 
 
 @router.patch("/insurance-products/{product_id}")
@@ -249,6 +252,9 @@ def update_product(
     if "defaultPremiumPct" in data:
         p.defaultPremiumPct = data["defaultPremiumPct"]
         fields.append("defaultPremiumPct")
+    if "defaultPremiumRubles" in data:
+        p.defaultPremiumRubles = data["defaultPremiumRubles"]
+        fields.append("defaultPremiumRubles")
     audit_log(
         db,
         user_id=user.sub,
@@ -257,7 +263,7 @@ def update_product(
         entity_id=product_id,
         payload={"fields": fields},
     )
-    db.refresh(p)
+    db.flush()
     return product_row(p)
 
 

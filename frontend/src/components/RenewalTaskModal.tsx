@@ -19,6 +19,7 @@ import {
 import { formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
 import { toLocalYMD } from '../utils/localDate';
 import { DateField } from './DateField';
+import { FieldHint } from './FieldHint';
 import { Modal } from './Modal';
 import { PolicyForm } from './PolicyForm';
 import { ValidatedTextarea } from './ValidatedTextarea';
@@ -308,7 +309,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
               maxLength={1000}
               rows={4}
               required
-              placeholder="Например: перезвонить после отпуска, уточнить условия у руководства…"
+              hint="Например: перезвонить после отпуска, уточнить условия у руководства…"
             />
           </label>
           <label className="field">
@@ -316,14 +317,16 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
             <DateField value={dateYmd} onChange={setDateYmd} min={toLocalYMD(new Date())} />
           </label>
           <label className="field">
-            <span className="field-label">Время (необязательно)</span>
+            <span className="field-label">
+              Время (необязательно)
+              <FieldHint>Если не указать — 09:00</FieldHint>
+            </span>
             <input
               type="time"
               value={timeHm}
               onChange={(e) => setTimeHm(e.target.value)}
               className="input-numeric-no-spin"
             />
-            <span className="field-hint">Если не указать — 09:00</span>
           </label>
           {err ? (
             <p className="form-error" role="alert">
@@ -356,7 +359,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
               maxLength={1000}
               rows={4}
               required
-              placeholder="Например: подтверждение суммы, документы, решение по продлению…"
+              hint="Например: подтверждение суммы, документы, решение по продлению…"
             />
           </label>
           <label className="field">
@@ -364,14 +367,16 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
             <DateField value={dateYmd} onChange={setDateYmd} min={toLocalYMD(new Date())} />
           </label>
           <label className="field">
-            <span className="field-label">Время (необязательно)</span>
+            <span className="field-label">
+              Время (необязательно)
+              <FieldHint>Если не указать — 09:00</FieldHint>
+            </span>
             <input
               type="time"
               value={timeHm}
               onChange={(e) => setTimeHm(e.target.value)}
               className="input-numeric-no-spin"
             />
-            <span className="field-hint">Если не указать — 09:00</span>
           </label>
           {err ? (
             <p className="form-error" role="alert">
@@ -404,7 +409,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
               maxLength={1000}
               rows={5}
               required
-              placeholder="Кратко опишите причину…"
+              hint="Кратко опишите причину отказа клиента"
             />
           </label>
           {err ? (

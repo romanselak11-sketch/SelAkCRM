@@ -68,14 +68,16 @@ export function LoginPage() {
             />
           </label>
           <label className="field">
-            <span className="field-label">Пароль</span>
+            <span className="field-label">
+              Пароль
+              <FieldHint>Введите пароль от учётной записи</FieldHint>
+            </span>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
-            <FieldHint>Введите пароль от учётной записи</FieldHint>
           </label>
           {err && (
             <p className="form-error" role="alert">

@@ -1,4 +1,5 @@
 import type { InputHTMLAttributes } from 'react';
+import { useId } from 'react';
 import { useInputRejectFeedback } from '../hooks/useInputRejectFeedback';
 import {
   FIELD_HINTS,
@@ -26,40 +27,46 @@ export function ValidatedInput({
   hideHint,
   inputMode,
   className,
+  id,
   ...rest
 }: ValidatedInputProps) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
   const hintText = hint ?? FIELD_HINTS[kind];
-  const hintId = rest.id ? `${rest.id}-hint` : undefined;
-  const bubbleId = rest.id ? `${rest.id}-reject` : undefined;
+  const hintId = `${inputId}-hint`;
+  const bubbleId = `${inputId}-reject`;
   const numeric = kind === 'money' || kind === 'decimal';
   const rejectMessage = FIELD_REJECT_MESSAGES[kind];
   const { bubbleVisible, bubbleMessage, notifyRejected } = useInputRejectFeedback(rejectMessage);
+  const showHint = !hideHint && Boolean(hintText);
 
   return (
     <div className="field-input-wrap">
       <FieldRejectBubble id={bubbleId} message={bubbleMessage} visible={bubbleVisible} />
-      <input
-        {...rest}
-        id={rest.id}
-        aria-describedby={
-          [
-            !hideHint && hintId ? hintId : null,
-            bubbleVisible && bubbleId ? bubbleId : null,
-            rest['aria-describedby'] ?? null,
-          ]
-            .filter(Boolean)
-            .join(' ') || undefined
-        }
-        value={value}
-        inputMode={inputMode ?? fieldInputMode(kind)}
-        className={[numeric ? 'input-numeric-no-spin' : null, className].filter(Boolean).join(' ') || undefined}
-        onChange={(e) => {
-          const { value: next, rejected } = applyFieldInput(kind, e.target.value);
-          if (rejected) notifyRejected();
-          onChange(next);
-        }}
-      />
-      {!hideHint ? <FieldHint id={hintId}>{hintText}</FieldHint> : null}
+      <div className="field-input-wrap__row">
+        <input
+          {...rest}
+          id={inputId}
+          aria-describedby={
+            [
+              showHint ? hintId : null,
+              bubbleVisible ? bubbleId : null,
+              rest['aria-describedby'] ?? null,
+            ]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
+          value={value}
+          inputMode={inputMode ?? fieldInputMode(kind)}
+          className={[numeric ? 'input-numeric-no-spin' : null, className].filter(Boolean).join(' ') || undefined}
+          onChange={(e) => {
+            const { value: next, rejected } = applyFieldInput(kind, e.target.value);
+            if (rejected) notifyRejected();
+            onChange(next);
+          }}
+        />
+        {showHint ? <FieldHint id={hintId}>{hintText}</FieldHint> : null}
+      </div>
     </div>
   );
 }

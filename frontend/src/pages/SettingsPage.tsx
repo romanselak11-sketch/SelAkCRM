@@ -221,18 +221,19 @@ export function SettingsPage() {
         <form className="form-grid" onSubmit={addUser}>
           <label className="field">
             <span className="field-label">Логин</span>
-            <ValidatedInput kind="login" placeholder="login" value={login} onChange={setLogin} required />
+            <ValidatedInput kind="login" value={login} onChange={setLogin} required />
           </label>
           <label className="field">
-            <span className="field-label">Пароль</span>
+            <span className="field-label">
+              Пароль
+              <FieldHint>Любые символы, не короче 10</FieldHint>
+            </span>
             <input
               type="password"
-              placeholder="не менее 10 символов"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <FieldHint>Любые символы, не короче 10</FieldHint>
           </label>
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span className="field-label">Роль</span>
@@ -296,15 +297,16 @@ export function SettingsPage() {
               </label>
             </div>
             <label className="field" style={{ gridColumn: '1 / -1' }}>
-              <span className="field-label">Новый пароль</span>
+              <span className="field-label">
+                Новый пароль
+                <FieldHint>Оставьте пустым или задайте новый (не короче 10 символов)</FieldHint>
+              </span>
               <input
                 type="password"
                 autoComplete="new-password"
-                placeholder="не менять — оставьте пустым"
                 value={editPassword}
                 onChange={(e) => setEditPassword(e.target.value)}
               />
-              <FieldHint>Оставьте пустым или задайте новый (не короче 10 символов)</FieldHint>
             </label>
             {editErr ? (
               <p className="form-error" role="alert" style={{ gridColumn: '1 / -1' }}>

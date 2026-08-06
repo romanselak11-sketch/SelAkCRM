@@ -64,6 +64,7 @@ class InsuranceProduct(Base):
     name: Mapped[str] = mapped_column(String)
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     defaultPremiumPct: Mapped[str | None] = mapped_column("defaultPremiumPct", String, nullable=True)
+    defaultPremiumRubles: Mapped[str | None] = mapped_column("defaultPremiumRubles", String, nullable=True)
     createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime, default=utcnow)
     updatedAt: Mapped[datetime] = mapped_column(
         "updatedAt", DateTime, default=utcnow, onupdate=utcnow

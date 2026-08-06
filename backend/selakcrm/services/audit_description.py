@@ -136,6 +136,7 @@ def describe_audit_event(
             "name": "название",
             "category": "категория",
             "defaultPremiumPct": "комиссия по умолчанию, %",
+            "defaultPremiumRubles": "комиссия по умолчанию, ₽",
         }
         extra = _fields_ru(p, "fields", product_fields)
         return f"{actor} изменил страховой продукт.{extra}"

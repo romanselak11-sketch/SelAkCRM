@@ -60,6 +60,7 @@ def product_row(p: InsuranceProduct) -> dict[str, Any]:
         "name": p.name,
         "category": p.category,
         "defaultPremiumPct": p.defaultPremiumPct,
+        "defaultPremiumRubles": p.defaultPremiumRubles,
         "createdAt": _iso(p.createdAt),
         "updatedAt": _iso(p.updatedAt),
         "deletedAt": _iso(p.deletedAt),

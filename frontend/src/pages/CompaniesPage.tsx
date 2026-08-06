@@ -10,6 +10,7 @@ import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
 import { ValidatedInput } from '../components/ValidatedInput';
 import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
+import { formatMoneyForField, normalizeMoneyForApi } from '../utils/moneyInput';
 
 type Company = {
   id: string;
@@ -20,11 +21,18 @@ type ProductRow = {
   id: string;
   name: string;
   defaultPremiumPct?: string | number | null;
+  defaultPremiumRubles?: string | number | null;
 };
 
 function formatProductPct(v: string | number | null | undefined): string | null {
   if (v === null || v === undefined || v === '') return null;
   return String(v);
+}
+
+function formatProductRubles(v: string | number | null | undefined): string | null {
+  if (v === null || v === undefined || v === '') return null;
+  const formatted = formatMoneyForField(v);
+  return formatted || null;
 }
 
 export function CompaniesPage() {
@@ -40,6 +48,7 @@ export function CompaniesPage() {
   const [companyProducts, setCompanyProducts] = useState<ProductRow[]>([]);
   const [productName, setProductName] = useState('');
   const [productPremiumPct, setProductPremiumPct] = useState('');
+  const [productPremiumRubles, setProductPremiumRubles] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [companyEditName, setCompanyEditName] = useState('');
   const [companySaving, setCompanySaving] = useState(false);
@@ -142,6 +151,7 @@ export function CompaniesPage() {
   function resetProductForm() {
     setProductName('');
     setProductPremiumPct('');
+    setProductPremiumRubles('');
     setEditingProductId(null);
   }
 
@@ -158,6 +168,7 @@ export function CompaniesPage() {
     setEditingProductId(p.id);
     setProductName(p.name);
     setProductPremiumPct(formatProductPct(p.defaultPremiumPct) ?? '');
+    setProductPremiumRubles(formatProductRubles(p.defaultPremiumRubles) ?? '');
   }
 
   async function onProductFormSubmit(e: FormEvent) {
@@ -172,6 +183,11 @@ export function CompaniesPage() {
     if (pctStr !== '' && Number.isNaN(pctParsed)) return;
     const pctPayload = pctStr === '' ? null : String(pctParsed);
 
+    const rubStr = productPremiumRubles.trim();
+    const rubNormalized = rubStr === '' ? null : normalizeMoneyForApi(rubStr);
+    if (rubStr !== '' && !rubNormalized) return;
+    const rubPayload = rubNormalized;
+
     try {
       setFormError(null);
       if (editingProductId) {
@@ -180,6 +196,7 @@ export function CompaniesPage() {
           body: JSON.stringify({
             name: productName,
             defaultPremiumPct: pctPayload,
+            defaultPremiumRubles: rubPayload,
           }),
         });
       } else {
@@ -188,6 +205,7 @@ export function CompaniesPage() {
           body: JSON.stringify({
             name: productName,
             ...(pctPayload !== null && { defaultPremiumPct: pctPayload }),
+            ...(rubPayload !== null && { defaultPremiumRubles: rubPayload }),
           }),
         });
       }
@@ -277,7 +295,7 @@ export function CompaniesPage() {
               kind="text"
               value={name}
               onChange={setName}
-              placeholder="Например, АО «Ромашка»"
+              hint="Например: АО «Ромашка»"
               required
             />
           </label>
@@ -301,7 +319,7 @@ export function CompaniesPage() {
         open={selectedCompany !== null}
         onClose={closeProductsModal}
         title={selectedCompany?.name ?? 'Компания'}
-        description="Название компании, продукты и P% по умолчанию для оформления полисов."
+        description="Название компании, продукты и комиссия (P% / P₽) по умолчанию для оформления полисов."
         size="md"
       >
         <form
@@ -315,7 +333,7 @@ export function CompaniesPage() {
               kind="text"
               value={companyEditName}
               onChange={setCompanyEditName}
-              placeholder="Например, АО «Ромашка»"
+              hint="Например: АО «Ромашка»"
               minLength={1}
               required
             />
@@ -374,6 +392,11 @@ export function CompaniesPage() {
                       P% {formatProductPct(p.defaultPremiumPct)}
                     </span>
                   ) : null}
+                  {formatProductRubles(p.defaultPremiumRubles) != null ? (
+                    <span style={{ color: 'var(--fg-muted)', marginLeft: '0.5rem' }}>
+                      P₽ {formatProductRubles(p.defaultPremiumRubles)}
+                    </span>
+                  ) : null}
                 </div>
                 {canEditInsurance ? (
                   <button
@@ -400,7 +423,7 @@ export function CompaniesPage() {
                 kind="text"
                 value={productName}
                 onChange={setProductName}
-                placeholder="Например, ОСАГО"
+                hint="Например: ОСАГО"
                 required
               />
             </label>
@@ -410,7 +433,15 @@ export function CompaniesPage() {
                 kind="decimal"
                 value={productPremiumPct}
                 onChange={setProductPremiumPct}
-                placeholder="Например, 12.5"
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Комиссия агента в ₽</span>
+              <ValidatedInput
+                kind="money"
+                value={productPremiumRubles}
+                onChange={setProductPremiumRubles}
+                onBlur={() => setProductPremiumRubles((v) => formatMoneyForField(v))}
               />
             </label>
             <div className="form-actions">

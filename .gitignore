@@ -26,3 +26,5 @@ backend/dev.db
 backend/*.db-journal
 .env
 .env.local
+# Added by code-review-graph
+.code-review-graph/

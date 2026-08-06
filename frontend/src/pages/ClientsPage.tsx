@@ -28,7 +28,10 @@ function ClientPhoneFields({
 }) {
   return (
     <div className="field" style={{ gridColumn: '1 / -1' }}>
-      <span className="field-label">Телефон</span>
+      <span className="field-label">
+        Телефон
+        <FieldHint>Например: +79001234567</FieldHint>
+      </span>
       <div className="phone-field__rows">
         <div className="phone-field__row">
           <ValidatedInput
@@ -76,7 +79,6 @@ function ClientPhoneFields({
           </div>
         ))}
       </div>
-      <FieldHint>Например: +79001234567</FieldHint>
     </div>
   );
 }
@@ -256,7 +258,7 @@ export function ClientsPage() {
               type="email"
               value={email}
               onChange={setEmail}
-              placeholder="опционально"
+              hint="Необязательно. Например: user@mail.ru"
             />
           </label>
           <label className="field" style={{ gridColumn: '1 / -1' }}>
@@ -265,7 +267,7 @@ export function ClientsPage() {
               kind="url"
               value={documentsUrl}
               onChange={setDocumentsUrl}
-              placeholder="URL в облаке, опционально"
+              hint="Необязательно. Например: https://disk.yandex.ru/…"
             />
           </label>
           <div className="form-actions">

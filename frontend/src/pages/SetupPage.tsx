@@ -58,9 +58,11 @@ export function SetupPage() {
             <ValidatedInput kind="login" value={login} onChange={setLogin} />
           </label>
           <label className="field">
-            <span className="field-label">Пароль</span>
+            <span className="field-label">
+              Пароль
+              <FieldHint>Любые символы, не короче 10</FieldHint>
+            </span>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <FieldHint>Любые символы, не короче 10</FieldHint>
           </label>
           {err && (
             <p className="form-error" role="alert">
