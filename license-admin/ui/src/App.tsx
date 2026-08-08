@@ -409,26 +409,13 @@ export default function App() {
                                 {lic.activations.length > 0 ? (
                                   <div className="admin-activations">
                                     {lic.activations.map((a) => (
-                                      <div key={a.hwid} className="admin-activation-row mono">
-                                        <span>
-                                          {a.hwid}
-                                          {a.label ? ` · ${a.label}` : ''}
+                                      <div key={a.hwid} className="admin-activation-row">
+                                        <span className="admin-activation-label">
+                                          {a.label || 'Без метки'}
                                         </span>
-                                        <Btn
-                                          size="sm"
-                                          variant="ghost"
-                                          type="button"
-                                          onClick={() =>
-                                            void api(`/api/licenses/${lic.id}/deallocate`, {
-                                              method: 'POST',
-                                              body: JSON.stringify({ hwid: a.hwid }),
-                                            })
-                                              .then(() => refresh())
-                                              .catch((e) => setError(String(e.message || e)))
-                                          }
-                                        >
-                                          Отвязать
-                                        </Btn>
+                                        <span className="mono admin-activation-hwid" title={a.hwid}>
+                                          {a.hwid}
+                                        </span>
                                       </div>
                                     ))}
                                   </div>
@@ -453,6 +440,28 @@ export default function App() {
                                     label: 'Показать ключ',
                                     onSelect: () => revealKey(lic),
                                   },
+                                  ...lic.activations.map((a) => ({
+                                    id: `dealloc-${a.hwid}`,
+                                    label: a.label
+                                      ? `Отвязать: ${a.label}`
+                                      : 'Отвязать устройство',
+                                    onSelect: () => {
+                                      const name = a.label || a.hwid;
+                                      if (
+                                        !window.confirm(
+                                          `Отвязать устройство «${name}»? Место освободится для другого компьютера.`,
+                                        )
+                                      ) {
+                                        return;
+                                      }
+                                      void api(`/api/licenses/${lic.id}/deallocate`, {
+                                        method: 'POST',
+                                        body: JSON.stringify({ hwid: a.hwid }),
+                                      })
+                                        .then(() => refresh())
+                                        .catch((e) => setError(String(e.message || e)));
+                                    },
+                                  })),
                                   {
                                     id: 'revoke',
                                     label: 'Отозвать',
@@ -534,7 +543,10 @@ export default function App() {
                       </p>
                       <ul className="admin-help-list">
                         <li>Повторная выдача на тот же компьютер место не занимает.</li>
-                        <li>Клиент сменил ПК — «Отвязать» устройство и выдать новый код.</li>
+                        <li>
+                          Клиент сменил ПК — в меню «⋯» у ключа выберите «Отвязать», затем выдайте
+                          новый код.
+                        </li>
                         <li>Переустановка Windows меняет отпечаток: нужен новый код.</li>
                       </ul>
                     </Stack>

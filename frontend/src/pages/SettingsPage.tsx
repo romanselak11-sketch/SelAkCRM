@@ -28,7 +28,6 @@ import { Stack } from '../components/Stack';
 import { Switch } from '../components/Switch';
 import { ValidatedInput } from '../components/ValidatedInput';
 import { hasPermission } from '../domain/permissions';
-import { CopyRow } from '../licensing/CopyRow';
 import { formatRemaining } from '../licensing/formatRemaining';
 import { LicenseActivation } from '../licensing/LicenseActivation';
 import { useLicenseStatus, type LicenseStatusDto } from '../licensing/useLicenseStatus';
@@ -183,11 +182,6 @@ function LicenseSettingsSection() {
             onChanged={() => void license.refetch()}
           />
         )}
-        <CopyRow
-          label="Отпечаток компьютера"
-          value={license.hwid || '—'}
-          hint="Понадобится поставщику, если нужно освободить место под другой компьютер."
-        />
         <Stack direction="row" gap={3} align="center" justify="between" wrap>
           <span className="page-sub">Версия {license.productVersion || '—'}</span>
           {activated && me?.role === 'SUPER_ADMIN' ? (
