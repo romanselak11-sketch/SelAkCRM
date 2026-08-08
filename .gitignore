@@ -37,3 +37,6 @@ license-admin/keys/private*.pem
 
 # Added by code-review-graph
 .code-review-graph/
+
+# Локальный MCP (пути машины: Windows/macOS) — не в git
+.cursor/mcp.json
