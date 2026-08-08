@@ -45,6 +45,39 @@ npm run dev
 
 Подробности схемы — в [docs/licensing.md](../docs/licensing.md).
 
+## Сборка Windows exe
+
+На машине с Windows откройте **cmd** или **PowerShell** и выполните одно из:
+
+```bat
+cd /d D:\SelAkCRM\license-admin
+scripts\build_windows_exe.cmd
+```
+
+```powershell
+cd D:\SelAkCRM\license-admin
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+```
+
+Можно просто двойным щелчком запустить `license-admin\scripts\build_windows_exe.cmd`.
+
+Или вручную:
+
+```powershell
+cd D:\SelAkCRM\license-admin\ui
+npm ci
+npm run build
+
+cd D:\SelAkCRM\license-admin
+python -m pip install -e ..\backend
+python -m pip install -e ".[windows-exe]"
+pyinstaller --noconfirm license_admin.spec
+```
+
+Результат: `license-admin/dist/SelakCRM-LicenseAdmin.exe`.
+
+Данные вендора (vault, ключи) пишутся в `%LOCALAPPDATA%\SelakCRM-LicenseAdmin\` — не в каталог exe. Копия `public.pem` для сборки CRM-клиента: `%LOCALAPPDATA%\SelakCRM-LicenseAdmin\backend\selakcrm\licensing\public.pem`.
+
 ## Стиль
 
 UI переиспользует компоненты и токены CRM через Vite alias `@crm` → `frontend/src`.

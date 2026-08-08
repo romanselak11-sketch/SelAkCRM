@@ -1,18 +1,28 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.staticfiles import StaticFiles
 
 from license_admin.service import LicenseAdminService
 
 service = LicenseAdminService()
 app = FastAPI(title="SelAkCRM License Admin")
+_cors_origins = [
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
+    "http://127.0.0.1:8766",
+    "http://localhost:8766",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5174", "http://localhost:5174"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,3 +109,35 @@ def activate(body: ActivateIn) -> dict[str, Any]:
 @app.get("/api/audit")
 def audit() -> list[dict[str, Any]]:
     return list(reversed(service.state.audit[-100:]))
+
+
+def _mount_spa_static_if_configured(application: FastAPI) -> None:
+    """Раздача собранного Vite (LICENSE_ADMIN_STATIC_DIR) и fallback на index.html."""
+    raw = os.environ.get("LICENSE_ADMIN_STATIC_DIR", "").strip()
+    if not raw:
+        return
+    static_dir = Path(raw)
+    index = static_dir / "index.html"
+    if not index.is_file():
+        return
+    assets = static_dir / "assets"
+    if assets.is_dir():
+        application.mount("/assets", StaticFiles(directory=str(assets)), name="spa_assets")
+
+    @application.get("/{full_path:path}")
+    def spa_fallback(full_path: str) -> FileResponse:
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        try:
+            candidate = (static_dir / full_path).resolve()
+        except OSError:
+            return FileResponse(index)
+        root = static_dir.resolve()
+        if not candidate.is_relative_to(root):
+            return FileResponse(index)
+        if candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(index)
+
+
+_mount_spa_static_if_configured(app)

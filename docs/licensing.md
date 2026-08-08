@@ -52,6 +52,8 @@ API: `/api/v1/license/status|activate|redeem|deactivate`.
 
 `status` отдаёт `requestCode`, когда ключ введён, — отдельный запрос за кодом не нужен.
 
+Сборка Windows exe: CRM — `backend/scripts/build_windows_exe.ps1` → `SelakCRM.exe`; License Admin — `license-admin/scripts/build_windows_exe.ps1` → `SelakCRM-LicenseAdmin.exe` (см. [license-admin/README.md](../license-admin/README.md)).
+
 ## Бэкап (обязательно до продаж)
 
 Храните в двух офлайн-местах:
