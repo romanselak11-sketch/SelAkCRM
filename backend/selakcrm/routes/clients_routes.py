@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from selakcrm.database import get_db
-from selakcrm.deps import JwtUser, get_current_user
+from selakcrm.deps import JwtUser, assert_permission, get_current_user
 from selakcrm.schemas_base import StrictBody
 from selakcrm.domain.search import client_search_where_clause, parse_search_tokens
 from selakcrm.domain.url_mask import mask_url_for_audit
@@ -27,11 +27,11 @@ ALLOWED_LIMITS = {10, 25, 50}
 
 def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     try:
-        lim = int(limit_raw or "10")
+        lim = int(limit_raw or "25")
     except ValueError:
-        lim = 10
+        lim = 25
     if lim not in ALLOWED_LIMITS:
-        lim = 10
+        lim = 25
     try:
         page = int(page_raw or "1")
     except ValueError:
@@ -41,14 +41,16 @@ def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     return page, lim
 
 
-def _require_admin_manager_list(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER", "MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
+def _require_admin_manager_list(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "nav.clients")
 
 
-def _require_admin_manager_write(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
+def _require_admin_manager_write(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "clients.write")
+
+
+def _require_client_policies(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "clients.view_policies")
 
 
 def _validate_documents_url(url: str | None) -> None:
@@ -69,7 +71,7 @@ def list_clients(
     limit: str | None = None,
     q: str | None = None,
 ) -> dict:
-    _require_admin_manager_list(user)
+    _require_admin_manager_list(db, user)
     p, lim = _page_limit(page, limit)
     skip = (p - 1) * lim
     tokens = parse_search_tokens(q)
@@ -110,7 +112,7 @@ def get_client(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_admin_manager_write(db, user)
     c = (
         db.query(Client)
         .options(joinedload(Client.additionalPhones))
@@ -138,7 +140,7 @@ def create_client(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_admin_manager_write(db, user)
     _validate_documents_url(body.documentsUrl)
     c = create_client_record(
         db,
@@ -171,7 +173,7 @@ def update_client(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_admin_manager_write(db, user)
     c = (
         db.query(Client)
         .options(joinedload(Client.additionalPhones))
@@ -236,7 +238,7 @@ def archive_client(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_admin_manager_write(db, user)
     c = db.query(Client).filter(Client.id == client_id, Client.deletedAt.is_(None)).first()
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -251,7 +253,7 @@ def restore_client(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_admin_manager_write(db, user)
     c = db.get(Client, client_id)
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -266,9 +268,13 @@ def client_policies(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
     page: int = 1,
-    pageSize: int = 20,
+    pageSize: int = 25,
 ) -> dict:
-    _require_admin_manager_write(user)
+    _require_client_policies(db, user)
+    if page < 1:
+        page = 1
+    if pageSize not in ALLOWED_LIMITS:
+        pageSize = 25
     c = db.query(Client).filter(Client.id == client_id, Client.deletedAt.is_(None)).first()
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})

@@ -1,10 +1,11 @@
-export type UserRole = 'SUPER_ADMIN' | 'SUPER_MANAGER' | 'MANAGER';
+type UserRole = 'SUPER_ADMIN' | 'SUPER_MANAGER' | 'MANAGER';
 
 export type Me = {
   id: string;
   login: string;
   role: UserRole;
   theme: 'light' | 'dark';
+  permissions: string[];
 };
 
 export type Paginated<T> = {

@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { hasPermission } from '../domain/permissions';
 import { Modal } from '../components/Modal';
+import { Btn } from '../components/Btn';
+import { Card, CardHeader } from '../components/Card';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableClickRow,
+  DataTableEmpty,
+  DataTableHead,
+  DataTableTd,
+  DataTableTh,
+} from '../components/DataTable';
+import { FormError } from '../components/FormActions';
 import { NotificationToasts } from '../components/NotificationToasts';
-import { PageHeading } from '../components/PageHeading';
+import { PageHeader } from '../components/PageHeader';
 import { PolicyForm } from '../components/PolicyForm';
 import { RenewalTaskModal, type RenewalTaskRow } from '../components/RenewalTaskModal';
+import { TaskStatusBadge } from '../components/TaskStatusBadge';
 import { formatRenewalTaskDisplay, renewalTaskDeadlineClass } from '../domain/renewal-task-display';
-import { RENEWAL_STATUS_LABELS, renewalStatusBadgeClass } from '../domain/renewal-task-status';
 import { setDocumentTitle } from '../utils/documentTitle';
 
 type Notif = { id: string; message: string; type: string };
@@ -101,29 +114,25 @@ export function HomePage() {
     };
   }, [scheduleNotificationToasts]);
 
-  const canAddPolicy =
-    me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER' || me?.role === 'MANAGER';
+  const canAddPolicy = hasPermission(me, 'policies.create');
 
   return (
-    <div className="page">
+    <div className="page page--home">
       <NotificationToasts items={toastItems} />
 
-      <header className="page-header">
-        <PageHeading title="Главная" hint="Задачи и быстрые действия по полисам." />
-        {canAddPolicy && (
-          <div className="page-actions">
-            <button type="button" className="btn btn--primary" onClick={() => setPolicyDialog({ mode: 'create' })}>
+      <PageHeader
+        title="Главная"
+        hint="Задачи и быстрые действия по полисам."
+        actions={
+          canAddPolicy ? (
+            <Btn variant="primary" onClick={() => setPolicyDialog({ mode: 'create' })}>
               Добавить полис
-            </button>
-          </div>
-        )}
-      </header>
+            </Btn>
+          ) : undefined
+        }
+      />
 
-      {err && (
-        <p className="form-error page-alert" role="alert">
-          {err}
-        </p>
-      )}
+      <FormError className="page-alert">{err}</FormError>
 
       <RenewalTaskModal
         task={selectedTask}
@@ -150,70 +159,51 @@ export function HomePage() {
         ) : null}
       </Modal>
 
-      <section className="card">
-        <div className="card-header">
-          <h2 className="card-title">Задачи</h2>
-        </div>
-        <div className="data-table-wrap">
-          <table className="data-table data-table--task-rows">
-            <thead>
-              <tr>
-                <th>Статус</th>
-                <th>Клиент</th>
-                <th>Телефон</th>
-                <th>Полис</th>
-                <th>Объект страхования</th>
-                <th>До окончания</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.length === 0 ? (
-                <tr className="data-table__empty-row">
-                  <td colSpan={6}>
-                    <p className="empty-hint empty-hint--in-cell">Нет активных задач.</p>
-                  </td>
-                </tr>
-              ) : (
-                tasks.map((t) => (
-                  <tr
-                    key={t.taskId}
-                    className="data-table__click-row"
-                    onClick={() => setSelectedTask(t)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedTask(t);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Открыть задачу"
-                  >
-                    <td>
-                      <span className={renewalStatusBadgeClass(t.status)}>
-                        {RENEWAL_STATUS_LABELS[t.status]}
-                      </span>
-                    </td>
-                    <td>
-                      {t.client.lastName} {t.client.firstName} {t.client.middleName ?? ''}
-                    </td>
-                    <td>{t.client.phone}</td>
-                    <td>
-                      {t.policy.companyName} / {t.policy.productName}
-                    </td>
-                    <td>{t.policy.insuredObject?.trim() || '—'}</td>
-                    <td>
-                      <span className={renewalTaskDeadlineClass(t.display)}>
-                        {formatRenewalTaskDisplay(t.display)}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <Card>
+        <CardHeader title="Задачи" />
+        <DataTable>
+          <DataTableHead>
+            <tr>
+              <DataTableTh>Статус</DataTableTh>
+              <DataTableTh>Клиент</DataTableTh>
+              <DataTableTh>Телефон</DataTableTh>
+              <DataTableTh>Полис</DataTableTh>
+              <DataTableTh>Объект страхования</DataTableTh>
+              <DataTableTh fit>До окончания</DataTableTh>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {tasks.length === 0 ? (
+              <DataTableEmpty colSpan={6}>Нет активных задач.</DataTableEmpty>
+            ) : (
+              tasks.map((t) => (
+                <DataTableClickRow
+                  key={t.taskId}
+                  onActivate={() => setSelectedTask(t)}
+                  ariaLabel="Открыть задачу"
+                >
+                  <DataTableTd>
+                    <TaskStatusBadge status={t.status} />
+                  </DataTableTd>
+                  <DataTableTd>
+                    {t.client.lastName} {t.client.firstName} {t.client.middleName ?? ''}
+                  </DataTableTd>
+                  <DataTableTd>{t.client.phone}</DataTableTd>
+                  <DataTableTd>
+                    {t.policy.companyName} / {t.policy.productName}
+                  </DataTableTd>
+                  <DataTableTd>{t.policy.insuredObject?.trim() || '—'}</DataTableTd>
+                  <DataTableTd fit title={formatRenewalTaskDisplay(t.display)}>
+                    <span className={renewalTaskDeadlineClass(t.display)}>
+                      {formatRenewalTaskDisplay(t.display)}
+                    </span>
+                  </DataTableTd>
+                </DataTableClickRow>
+              ))
+            )}
+          </DataTableBody>
+        </DataTable>
+      </Card>
     </div>
   );
 }

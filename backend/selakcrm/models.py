@@ -141,10 +141,14 @@ class Policy(Base):
         "updatedAt", DateTime, default=utcnow, onupdate=utcnow
     )
     deletedAt: Mapped[datetime | None] = mapped_column("deletedAt", DateTime, nullable=True)
+    createdByUserId: Mapped[str | None] = mapped_column(
+        "createdByUserId", String, ForeignKey("User.id"), nullable=True
+    )
 
     client: Mapped[Client] = relationship(back_populates="policies")
     company: Mapped[InsuranceCompany] = relationship(back_populates="policies")
     product: Mapped[InsuranceProduct] = relationship(back_populates="policies")
+    createdBy: Mapped[User | None] = relationship(foreign_keys=[createdByUserId])
     renewalTasks: Mapped[list[RenewalTask]] = relationship(
         back_populates="policy",
         foreign_keys="RenewalTask.policyId",
@@ -154,6 +158,7 @@ class Policy(Base):
         UniqueConstraint("companyId", "number", name="Policy_companyId_number_key"),
         Index("Policy_clientId_idx", "clientId"),
         Index("Policy_endDate_idx", "endDate"),
+        Index("Policy_createdByUserId_idx", "createdByUserId"),
     )
 
 
@@ -253,3 +258,13 @@ class AppSetting(Base):
 
     key: Mapped[str] = mapped_column(String, primary_key=True)
     value: Mapped[str] = mapped_column(String)
+
+
+class RolePermission(Base):
+    """Матрица прав для настраиваемых ролей (SUPER_MANAGER, MANAGER). SUPER_ADMIN не хранится."""
+
+    __tablename__ = "RolePermission"
+
+    role: Mapped[str] = mapped_column(String, primary_key=True)
+    permissions: Mapped[Any] = mapped_column(JSON, default=list)
+    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime, default=utcnow, onupdate=utcnow)

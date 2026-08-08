@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Btn } from './Btn';
+import { FormActions } from './FormActions';
 import { Modal } from './Modal';
 
 type ConfirmModalProps = {
@@ -37,9 +39,6 @@ export function ConfirmModal({
     }
   }
 
-  const confirmClass =
-    confirmVariant === 'danger-soft' ? 'btn btn--danger-soft' : 'btn btn--primary';
-
   return (
     <Modal
       open={open}
@@ -49,14 +48,18 @@ export function ConfirmModal({
       size="sm"
       disableBackdropClose
     >
-      <div className="form-actions" style={{ marginTop: 0 }}>
-        <button type="button" className={confirmClass} disabled={busy} onClick={() => void handleConfirm()}>
+      <FormActions flush>
+        <Btn
+          variant={confirmVariant === 'danger-soft' ? 'danger-soft' : 'primary'}
+          disabled={busy}
+          onClick={() => void handleConfirm()}
+        >
           {confirmLabel}
-        </button>
-        <button type="button" className="btn btn--ghost" disabled={busy} onClick={onClose}>
+        </Btn>
+        <Btn variant="ghost" disabled={busy} onClick={onClose}>
           {cancelLabel}
-        </button>
-      </div>
+        </Btn>
+      </FormActions>
     </Modal>
   );
 }

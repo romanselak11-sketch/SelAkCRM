@@ -53,7 +53,7 @@ def test_client_policies_returns_compact_fields(client):
     )
     assert create_policy.status_code == 200
 
-    res = client.get(f"/api/v1/clients/{person['id']}/policies?page=1&pageSize=20", headers=headers)
+    res = client.get(f"/api/v1/clients/{person['id']}/policies?page=1&pageSize=25", headers=headers)
     assert res.status_code == 200
     body = res.json()
     assert body["total"] == 1
@@ -78,5 +78,5 @@ def test_manager_forbidden_to_read_client_policies(client):
         headers=headers,
     ).json()
 
-    res = client.get(f"/api/v1/clients/{person['id']}/policies?page=1&pageSize=20", headers=manager_headers)
+    res = client.get(f"/api/v1/clients/{person['id']}/policies?page=1&pageSize=25", headers=manager_headers)
     assert res.status_code == 403

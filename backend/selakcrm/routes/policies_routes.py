@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from selakcrm.database import get_db
-from selakcrm.deps import JwtUser, get_current_user
+from selakcrm.deps import JwtUser, assert_permission, get_current_user
 from selakcrm.schemas_base import StrictBody
 from selakcrm.domain.policy_dates import calendar_date_from_ymd, same_calendar_day
 from selakcrm.domain.policy_income import assert_valid_policy_combination, compute_agent_income_d
@@ -27,11 +27,11 @@ ALLOWED_LIMITS = {10, 25, 50}
 
 def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     try:
-        lim = int(limit_raw or "10")
+        lim = int(limit_raw or "25")
     except ValueError:
-        lim = 10
+        lim = 25
     if lim not in ALLOWED_LIMITS:
-        lim = 10
+        lim = 25
     try:
         page = int(page_raw or "1")
     except ValueError:
@@ -41,9 +41,16 @@ def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     return page, lim
 
 
-def _require_admin(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
+def _require_policies_read(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "nav.policies")
+
+
+def _require_policies_create(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "policies.create")
+
+
+def _require_policies_edit(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "policies.edit")
 
 
 def _assert_premium_pct(pct: str | None) -> None:
@@ -149,6 +156,7 @@ def _create_policy_entity(
         startDate=end_date,
         endDate=end_date,
         termDays=1,
+        createdByUserId=actor_id,
         createdAt=now,
         updatedAt=now,
     )
@@ -179,7 +187,7 @@ def list_policies(
     limit: str | None = None,
     q: str | None = None,
 ) -> dict:
-    _require_admin(user)
+    _require_policies_read(db, user)
     p, lim = _page_limit(page, limit)
     skip = (p - 1) * lim
     tokens = parse_search_tokens(q)
@@ -226,7 +234,7 @@ def get_policy(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin(user)
+    _require_policies_read(db, user)
     p = (
         db.query(Policy)
         .options(joinedload(Policy.client), joinedload(Policy.company), joinedload(Policy.product))
@@ -244,7 +252,7 @@ def create_policy_route(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin(user)
+    _require_policies_create(db, user)
     p = _create_policy_entity(db, body, user.sub, from_home=False)
     RenewalSyncService(db).sync_after_policy_change()
     return policy_full(p)
@@ -257,7 +265,7 @@ def update_policy_route(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin(user)
+    _require_policies_edit(db, user)
     p = (
         db.query(Policy)
         .options(joinedload(Policy.client), joinedload(Policy.company), joinedload(Policy.product))
@@ -345,7 +353,7 @@ def archive_policy(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin(user)
+    _require_policies_edit(db, user)
     p = db.query(Policy).filter(Policy.id == policy_id, Policy.deletedAt.is_(None)).first()
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -361,7 +369,7 @@ def restore_policy(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_admin(user)
+    _require_policies_edit(db, user)
     p = db.get(Policy, policy_id)
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})

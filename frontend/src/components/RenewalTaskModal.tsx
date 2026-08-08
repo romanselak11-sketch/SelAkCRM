@@ -3,10 +3,10 @@ import type { FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import {
-  RENEWAL_STATUS_LABELS,
   canActOnRenewalTask,
   canEditRenewedRenewalTask,
-  renewalStatusBadgeClass,
+  canRenewRenewalTask,
+  isRenewalTaskEditPrimary,
   resolveRenewalTaskEditablePolicyId,
   type RenewalTaskStatusApi,
 } from '../domain/renewal-task-status';
@@ -16,21 +16,29 @@ import {
   renewalTaskDeadlineClass,
   type RenewalTaskDisplay,
 } from '../domain/renewal-task-display';
-import { formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
+import { formatDateTimeRu, formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
 import { toLocalYMD } from '../utils/localDate';
 import { DateField } from './DateField';
-import { FieldHint } from './FieldHint';
+import { Btn } from './Btn';
+import { FieldLabel } from './FieldLabel';
+import { FormActions, FormError } from './FormActions';
 import { Modal } from './Modal';
 import { PolicyForm } from './PolicyForm';
+import { TaskStatusBadge } from './TaskStatusBadge';
 import { ValidatedTextarea } from './ValidatedTextarea';
 import { RenewalTaskCommentHistory } from './RenewalTaskCommentHistory';
 import type { RenewalTaskCommentEntry } from '../domain/renewal-task-comments';
+import { renewalTaskCommentPreview } from '../domain/renewal-task-comment-preview';
 
 export type RenewalTaskRow = {
   taskId: string;
   policyId: string;
   status: RenewalTaskStatusApi;
   display: RenewalTaskDisplay;
+  /** Номер задачи в реестре (если пришёл с API). */
+  taskNumber?: number;
+  createdAt?: string;
+  statusChangedAt?: string;
   client: {
     id: string;
     lastName: string;
@@ -87,7 +95,7 @@ function buildUntilIso(dateYmd: string, timeHm: string | undefined): string {
   return dt.toISOString();
 }
 
-type View = 'main' | 'renew' | 'editRenewed' | 'postponeSimple' | 'postponeFeedback' | 'decline';
+type View = 'main' | 'edit' | 'renew' | 'editRenewed' | 'postponeSimple' | 'postponeFeedback' | 'decline';
 
 type RenewalTaskModalProps = {
   task: RenewalTaskRow | null;
@@ -122,14 +130,16 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
   if (!task) return null;
 
   const canActOnTask = canActOnRenewalTask(task.status);
+  const canRenew = canRenewRenewalTask(task.status);
   const editablePolicyId = resolveRenewalTaskEditablePolicyId(task);
-  const canEditRenewed =
-    task.status === 'RENEWED' &&
-    editablePolicyId &&
-    canEditRenewedRenewalTask(me?.role);
+  const canEditPolicy = Boolean(editablePolicyId) && canEditRenewedRenewalTask(me);
+  const editIsPrimary = canEditPolicy && isRenewalTaskEditPrimary(task.status);
+  const renewIsPrimary = canRenew && !editIsPrimary;
 
   const deadlineLabel = isRenewalTaskCompleted(task.display) ? 'Завершена' : 'До окончания';
   const untilLabel = formatRenewalTaskDisplay(task.display);
+  const activeComment = renewalTaskCommentPreview(task);
+  const activeCommentLabel = 'Комментарий';
 
   async function submitPostpone(mode: 'simple' | 'feedback') {
     if (!task) return;
@@ -184,23 +194,113 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
     }
   }
 
+  const canEnterEdit = canActOnTask || canEditPolicy;
+  const taskSubtitle = `${task.client.lastName} ${task.client.firstName} · полис ${task.policy.number}`;
+
   const title =
     view === 'renew'
       ? 'Продление полиса'
       : view === 'editRenewed'
         ? 'Редактирование полиса'
         : view === 'postponeSimple'
-        ? 'Отложить задачу'
-        : view === 'postponeFeedback'
-          ? 'Ожидание обратной связи'
-          : view === 'decline'
-            ? 'Отказ клиента'
-            : 'Задача';
+          ? 'Отложить задачу'
+          : view === 'postponeFeedback'
+            ? 'Ожидание обратной связи'
+            : view === 'decline'
+              ? 'Отказ клиента'
+              : view === 'edit'
+                ? 'Редактирование задачи'
+                : 'Задача';
 
-  const description =
-    view === 'main'
-      ? `${task.client.lastName} ${task.client.firstName} · полис ${task.policy.number}`
-      : undefined;
+  const description = view === 'main' || view === 'edit' ? taskSubtitle : undefined;
+
+  const summary = (
+    <div className="renewal-task-modal__summary">
+      {task.taskNumber != null ? (
+        <p className="renewal-task-modal__line">
+          <strong>№:</strong> {task.taskNumber}
+        </p>
+      ) : null}
+      {task.createdAt ? (
+        <p className="renewal-task-modal__line">
+          <strong>Создана:</strong> {formatDateTimeRu(task.createdAt)}
+        </p>
+      ) : null}
+      <p className="renewal-task-modal__line">
+        <strong>Статус:</strong> <TaskStatusBadge status={task.status} />
+      </p>
+      {task.statusChangedAt ? (
+        <p className="renewal-task-modal__line">
+          <strong>Статус изменён:</strong> {formatDateTimeRu(task.statusChangedAt)}
+        </p>
+      ) : null}
+      <p className="renewal-task-modal__line">
+        <strong>Клиент:</strong> {task.client.lastName} {task.client.firstName}{' '}
+        {task.client.middleName ?? ''}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Телефон:</strong> {task.client.phone}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Полис:</strong> {task.policy.number} · {task.policy.companyName} /{' '}
+        {task.policy.productName}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Объект страхования:</strong> {task.policy.insuredObject?.trim() || '—'}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Дата окончания полиса:</strong> {formatIsoDateRu(task.policy.endDate)}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Стоимость полиса:</strong>{' '}
+        {task.policy.insuranceSumS ? formatMoneyRu(task.policy.insuranceSumS) : '—'}
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>{deadlineLabel}:</strong>{' '}
+        <span className={renewalTaskDeadlineClass(task.display)}>{untilLabel}</span>
+      </p>
+      <p className="renewal-task-modal__line">
+        <strong>Новый полис:</strong>{' '}
+        {task.renewedPolicy
+          ? `${task.renewedPolicy.number} · ${task.renewedPolicy.companyName} / ${task.renewedPolicy.productName}`
+          : '—'}
+      </p>
+      <p className="renewal-task-modal__line renewal-task-modal__line--multiline">
+        <strong>{activeCommentLabel}:</strong> {activeComment}
+      </p>
+      {task.commentHistory && task.commentHistory.length > 0 ? (
+        <RenewalTaskCommentHistory entries={task.commentHistory} />
+      ) : null}
+      {task.renewedPolicy ? (
+        <div className="renewal-task-modal__renewed-block">
+          <p className="renewal-task-modal__line">
+            <strong>Оформленный полис:</strong> {task.renewedPolicy.number}
+          </p>
+          <p className="renewal-task-modal__line">
+            <strong>Компания / продукт:</strong> {task.renewedPolicy.companyName} /{' '}
+            {task.renewedPolicy.productName}
+          </p>
+          <p className="renewal-task-modal__line">
+            <strong>Объект страхования:</strong>{' '}
+            {task.renewedPolicy.insuredObject?.trim() || '—'}
+          </p>
+          <p className="renewal-task-modal__line">
+            <strong>Дата оформления:</strong>{' '}
+            {task.renewedPolicy.issueDate ? formatIsoDateRu(task.renewedPolicy.issueDate) : '—'}
+          </p>
+          <p className="renewal-task-modal__line">
+            <strong>Дата окончания:</strong> {formatIsoDateRu(task.renewedPolicy.endDate)}
+          </p>
+          <p className="renewal-task-modal__line">
+            <strong>Стоимость полиса:</strong>{' '}
+            {task.renewedPolicy.insuranceSumS
+              ? formatMoneyRu(task.renewedPolicy.insuranceSumS)
+              : '—'}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
 
   return (
     <Modal
@@ -210,117 +310,79 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
       description={description}
       size={view === 'renew' || view === 'editRenewed' ? 'lg' : 'md'}
       disableBackdropClose={view === 'renew' || view === 'editRenewed'}
-      bodyClassName={view === 'main' ? 'modal-body--renewal-task' : undefined}
+      bodyClassName={view === 'main' || view === 'edit' ? 'modal-body--renewal-task' : undefined}
     >
       {view === 'main' && (
         <div className="renewal-task-modal renewal-task-modal--main">
-          <div className="renewal-task-modal__summary">
-            <p className="renewal-task-modal__line">
-              <strong>Статус:</strong>{' '}
-              <span className={renewalStatusBadgeClass(task.status)}>
-                {RENEWAL_STATUS_LABELS[task.status]}
-              </span>
-            </p>
-            <p className="renewal-task-modal__line">
-              <strong>Телефон:</strong> {task.client.phone}
-            </p>
-            <p className="renewal-task-modal__line">
-              <strong>Полис:</strong> {task.policy.number} · {task.policy.companyName} /{' '}
-              {task.policy.productName}
-            </p>
-            <p className="renewal-task-modal__line">
-              <strong>Объект страхования:</strong> {task.policy.insuredObject?.trim() || '—'}
-            </p>
-            <p className="renewal-task-modal__line">
-              <strong>{deadlineLabel}:</strong>{' '}
-              <span className={renewalTaskDeadlineClass(task.display)}>{untilLabel}</span>
-            </p>
-            {task.commentHistory && task.commentHistory.length > 0 ? (
-              <RenewalTaskCommentHistory entries={task.commentHistory} />
-            ) : null}
-            {task.status === 'RENEWED' && task.renewedPolicy ? (
-              <div className="renewal-task-modal__renewed-block">
-                <p className="renewal-task-modal__line">
-                  <strong>Оформленный полис:</strong> {task.renewedPolicy.number}
-                </p>
-                <p className="renewal-task-modal__line">
-                  <strong>Компания / продукт:</strong> {task.renewedPolicy.companyName} /{' '}
-                  {task.renewedPolicy.productName}
-                </p>
-                <p className="renewal-task-modal__line">
-                  <strong>Объект страхования:</strong>{' '}
-                  {task.renewedPolicy.insuredObject?.trim() || '—'}
-                </p>
-                <p className="renewal-task-modal__line">
-                  <strong>Дата оформления:</strong>{' '}
-                  {task.renewedPolicy.issueDate
-                    ? formatIsoDateRu(task.renewedPolicy.issueDate)
-                    : '—'}
-                </p>
-                <p className="renewal-task-modal__line">
-                  <strong>Дата окончания:</strong> {formatIsoDateRu(task.renewedPolicy.endDate)}
-                </p>
-                <p className="renewal-task-modal__line">
-                  <strong>Стоимость полиса:</strong>{' '}
-                  {task.renewedPolicy.insuranceSumS
-                    ? formatMoneyRu(task.renewedPolicy.insuranceSumS)
-                    : '—'}
-                </p>
-              </div>
-            ) : null}
-          </div>
-          {canActOnTask ? (
+          {summary}
+          {canEnterEdit ? (
             <div className="renewal-task-modal__actions">
-              <button type="button" className="btn btn--ghost" onClick={() => setView('postponeSimple')}>
-                Отложить
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => setView('postponeFeedback')}
+              <Btn variant="primary" onClick={() => setView('edit')}>
+                Редактировать
+              </Btn>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {view === 'edit' && (
+        <div className="renewal-task-modal renewal-task-modal--main">
+          {summary}
+          <div className="renewal-task-modal__actions">
+            {canActOnTask ? (
+              <>
+                <Btn variant="ghost" onClick={() => setView('postponeSimple')}>
+                  Отложить
+                </Btn>
+                <Btn variant="ghost" onClick={() => setView('postponeFeedback')}>
+                  Ожидание обратной связи
+                </Btn>
+                {canRenew ? (
+                  <Btn
+                    variant={renewIsPrimary ? 'primary' : 'ghost'}
+                    onClick={() => setView('renew')}
+                  >
+                    Продлить полис
+                  </Btn>
+                ) : null}
+                <Btn variant="danger-soft" onClick={() => setView('decline')}>
+                  Клиент отказался
+                </Btn>
+              </>
+            ) : null}
+            {canEditPolicy ? (
+              <Btn
+                variant={editIsPrimary ? 'primary' : 'ghost'}
+                onClick={() => setView('editRenewed')}
               >
-                Ожидание обратной связи
-              </button>
-              <button type="button" className="btn btn--primary" onClick={() => setView('renew')}>
-                Продлить полис
-              </button>
-              <button type="button" className="btn btn--danger-soft" onClick={() => setView('decline')}>
-                Клиент отказался
-              </button>
-            </div>
-          ) : null}
-          {canEditRenewed ? (
-            <div className="renewal-task-modal__actions">
-              <button type="button" className="btn btn--primary" onClick={() => setView('editRenewed')}>
                 Редактировать полис
-              </button>
-            </div>
-          ) : null}
+              </Btn>
+            ) : null}
+            <Btn variant="ghost" onClick={() => setView('main')}>
+              Назад
+            </Btn>
+          </div>
         </div>
       )}
 
       {view === 'postponeSimple' && (
         <div className="renewal-task-modal__form">
           <label className="field">
-            <span className="field-label">Комментарий к отсрочке</span>
+            <FieldLabel hint="Зачем откладываем">Комментарий к отсрочке</FieldLabel>
             <ValidatedTextarea
               value={postponeComment}
               onChange={setPostponeComment}
               maxLength={1000}
               rows={4}
               required
-              hint="Например: перезвонить после отпуска, уточнить условия у руководства…"
             />
           </label>
           <label className="field">
-            <span className="field-label">Напомнить после (дата)</span>
+            <FieldLabel hint="Дата следующего касания">Напомнить после (дата)</FieldLabel>
             <DateField value={dateYmd} onChange={setDateYmd} min={toLocalYMD(new Date())} />
           </label>
           <label className="field">
-            <span className="field-label">
-              Время (необязательно)
-              <FieldHint>Если не указать — 09:00</FieldHint>
-            </span>
+            <FieldLabel hint="По умолчанию 09:00">Время (необязательно)</FieldLabel>
             <input
               type="time"
               value={timeHm}
@@ -328,49 +390,36 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
               className="input-numeric-no-spin"
             />
           </label>
-          {err ? (
-            <p className="form-error" role="alert">
-              {err}
-            </p>
-          ) : null}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={busy}
-              onClick={() => void submitPostpone('simple')}
-            >
+          <FormError>{err}</FormError>
+          <FormActions>
+            <Btn variant="primary" disabled={busy} onClick={() => void submitPostpone('simple')}>
               Сохранить
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => setView('main')} disabled={busy}>
+            </Btn>
+            <Btn variant="ghost" onClick={() => setView('edit')} disabled={busy}>
               Назад
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         </div>
       )}
 
       {view === 'postponeFeedback' && (
         <div className="renewal-task-modal__form">
           <label className="field">
-            <span className="field-label">Что ждём от клиента</span>
+            <FieldLabel hint="Что нужно получить">Что ждём от клиента</FieldLabel>
             <ValidatedTextarea
               value={feedbackComment}
               onChange={setFeedbackComment}
               maxLength={1000}
               rows={4}
               required
-              hint="Например: подтверждение суммы, документы, решение по продлению…"
             />
           </label>
           <label className="field">
-            <span className="field-label">Напомнить после (дата)</span>
+            <FieldLabel hint="Дата следующего касания">Напомнить после (дата)</FieldLabel>
             <DateField value={dateYmd} onChange={setDateYmd} min={toLocalYMD(new Date())} />
           </label>
           <label className="field">
-            <span className="field-label">
-              Время (необязательно)
-              <FieldHint>Если не указать — 09:00</FieldHint>
-            </span>
+            <FieldLabel hint="По умолчанию 09:00">Время (необязательно)</FieldLabel>
             <input
               type="time"
               value={timeHm}
@@ -378,53 +427,39 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
               className="input-numeric-no-spin"
             />
           </label>
-          {err ? (
-            <p className="form-error" role="alert">
-              {err}
-            </p>
-          ) : null}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={busy}
-              onClick={() => void submitPostpone('feedback')}
-            >
+          <FormError>{err}</FormError>
+          <FormActions>
+            <Btn variant="primary" disabled={busy} onClick={() => void submitPostpone('feedback')}>
               Сохранить
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => setView('main')} disabled={busy}>
+            </Btn>
+            <Btn variant="ghost" onClick={() => setView('edit')} disabled={busy}>
               Назад
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         </div>
       )}
 
       {view === 'decline' && (
         <form className="renewal-task-modal__form" onSubmit={submitDecline}>
           <label className="field">
-            <span className="field-label">Причина отказа клиента</span>
+            <FieldLabel hint="Почему отказался">Причина отказа клиента</FieldLabel>
             <ValidatedTextarea
               value={declineReason}
               onChange={setDeclineReason}
               maxLength={1000}
               rows={5}
               required
-              hint="Кратко опишите причину отказа клиента"
             />
           </label>
-          {err ? (
-            <p className="form-error" role="alert">
-              {err}
-            </p>
-          ) : null}
-          <div className="form-actions">
-            <button type="submit" className="btn btn--danger-soft" disabled={busy}>
+          <FormError>{err}</FormError>
+          <FormActions>
+            <Btn variant="danger-soft" type="submit" disabled={busy}>
               Закрыть задачу с отказом
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => setView('main')} disabled={busy}>
+            </Btn>
+            <Btn variant="ghost" onClick={() => setView('edit')} disabled={busy}>
               Назад
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         </form>
       )}
 
@@ -437,7 +472,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
             onUpdated();
             onClose();
           }}
-          onCancel={() => setView('main')}
+          onCancel={() => setView('edit')}
         />
       )}
 
@@ -449,7 +484,7 @@ export function RenewalTaskModal({ task, open, onClose, onUpdated }: RenewalTask
             onUpdated();
             onClose();
           }}
-          onCancel={() => setView('main')}
+          onCancel={() => setView('edit')}
         />
       ) : null}
     </Modal>

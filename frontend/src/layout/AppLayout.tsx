@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { Btn } from '../components/Btn';
+import { Badge } from '../components/Badge';
+import { LoadingScreen } from '../components/LoadingScreen';
+import { hasPermission } from '../domain/permissions';
+import { formatRemaining } from '../licensing/formatRemaining';
+import { useLicenseStatus } from '../licensing/useLicenseStatus';
 import { setDocumentTitle } from '../utils/documentTitle';
 import { resetPageScrollLock } from '../utils/pageScrollLock';
 
@@ -10,7 +16,7 @@ function NavIcon({
 }: {
   name: 'home' | 'building' | 'users' | 'file' | 'chart' | 'gear' | 'tasks';
 }) {
-  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (name) {
     case 'home':
       return (
@@ -92,7 +98,7 @@ function SidebarPrimaryBarIcon() {
         height="11.5"
         rx="2.25"
         stroke="currentColor"
-        strokeWidth="1.75"
+        strokeWidth="1.5"
       />
       <line
         x1="9.5"
@@ -100,7 +106,7 @@ function SidebarPrimaryBarIcon() {
         x2="9.5"
         y2="16.25"
         stroke="currentColor"
-        strokeWidth="1.75"
+        strokeWidth="1.5"
         strokeLinecap="round"
       />
     </svg>
@@ -126,6 +132,20 @@ export function AppLayout() {
   const [themeOpen, setThemeOpen] = useState(false);
   const themePopoverRef = useRef<HTMLDivElement>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
+  const license = useLicenseStatus();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (license.status !== 'demo' || license.remainingSeconds == null) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [license.status, license.remainingSeconds]);
+
+  const demoLabel = (() => {
+    if (license.status !== 'demo' || license.remainingSeconds == null) return null;
+    const remaining = Math.max(0, license.remainingSeconds - tick * 60);
+    return formatRemaining(remaining);
+  })();
 
   useEffect(() => {
     document.documentElement.dataset.theme = me?.theme ?? 'light';
@@ -161,21 +181,34 @@ export function AppLayout() {
     };
   }, [themeOpen]);
 
-  if (loading) return <p className="loading-screen">Загрузка…</p>;
+  if (loading) return <LoadingScreen />;
   if (!me) return <Navigate to="/login" replace state={{ from: loc }} />;
 
-  const managerAllowed =
-    loc.pathname === '/' ||
-    loc.pathname === '/tasks' ||
-    loc.pathname.startsWith('/renew/') ||
-    loc.pathname === '/policies/new';
-  if (me.role === 'MANAGER' && !managerAllowed) {
-    return <Navigate to="/" replace />;
-  }
+  const path = loc.pathname;
+  const canHome = hasPermission(me, 'nav.home');
+  const canTasks = hasPermission(me, 'nav.tasks');
+  const canCompanies = hasPermission(me, 'nav.companies');
+  const canClients = hasPermission(me, 'nav.clients');
+  const canPolicies = hasPermission(me, 'nav.policies');
+  const canAnalytics = hasPermission(me, 'nav.analytics');
+  const canSettings = hasPermission(me, 'nav.settings');
+  const canCreatePolicy = hasPermission(me, 'policies.create');
 
-  const showOps = me.role === 'SUPER_ADMIN' || me.role === 'SUPER_MANAGER';
-  const showAnalytics = me.role === 'SUPER_ADMIN';
-  const showAdminSettings = me.role === 'SUPER_ADMIN';
+  const allowed =
+    (path === '/' && canHome) ||
+    (path === '/tasks' && canTasks) ||
+    (path.startsWith('/renew/') && (canHome || canTasks || canCreatePolicy)) ||
+    (path === '/policies/new' && canCreatePolicy) ||
+    (path === '/companies' && canCompanies) ||
+    (path === '/clients' && canClients) ||
+    (path === '/policies' && canPolicies) ||
+    (path === '/analytics' && canAnalytics) ||
+    (path === '/settings' && canSettings);
+
+  if (!allowed) {
+    const fallback = canHome ? '/' : canTasks ? '/tasks' : '/login';
+    return <Navigate to={fallback} replace />;
+  }
 
   async function setTheme(t: 'light' | 'dark') {
     await api('/me/theme', { method: 'PATCH', body: JSON.stringify({ theme: t }) });
@@ -186,6 +219,9 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        К содержимому
+      </a>
       <aside className={sidebarCollapsed ? 'sidebar sidebar--collapsed' : 'sidebar'}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-top">
@@ -204,8 +240,9 @@ export function AppLayout() {
                 </>
               )}
             </div>
-            <button
-              type="button"
+            <Btn
+              variant="ghost"
+              size="icon"
               className="sidebar-toggle"
               aria-expanded={!sidebarCollapsed}
               aria-controls="app-sidebar-nav"
@@ -214,82 +251,95 @@ export function AppLayout() {
               onClick={() => setSidebarCollapsed((c) => !c)}
             >
               <SidebarPrimaryBarIcon />
-            </button>
+            </Btn>
           </div>
         </div>
         <nav id="app-sidebar-nav" className="sidebar-nav" aria-label="Основное меню">
-          <NavLink to="/" end title={sidebarCollapsed ? 'Главная' : undefined}>
-            <NavIcon name="home" />
-            <span className="sidebar-nav-label">Главная</span>
-          </NavLink>
-          <NavLink to="/tasks" title={sidebarCollapsed ? 'Задачи' : undefined}>
-            <NavIcon name="tasks" />
-            <span className="sidebar-nav-label">Задачи</span>
-          </NavLink>
-          {showOps && (
-            <>
-              <NavLink to="/companies" title={sidebarCollapsed ? 'Компании' : undefined}>
-                <NavIcon name="building" />
-                <span className="sidebar-nav-label">Компании</span>
-              </NavLink>
-              <NavLink to="/clients" title={sidebarCollapsed ? 'Клиенты' : undefined}>
-                <NavIcon name="users" />
-                <span className="sidebar-nav-label">Клиенты</span>
-              </NavLink>
-              <NavLink to="/policies" title={sidebarCollapsed ? 'Полисы' : undefined}>
-                <NavIcon name="file" />
-                <span className="sidebar-nav-label">Полисы</span>
-              </NavLink>
-            </>
+          {canHome && (
+            <NavLink to="/" end title={sidebarCollapsed ? 'Главная' : undefined}>
+              <NavIcon name="home" />
+              <span className="sidebar-nav-label">Главная</span>
+            </NavLink>
           )}
-          {showAnalytics && (
+          {canTasks && (
+            <NavLink to="/tasks" title={sidebarCollapsed ? 'Задачи' : undefined}>
+              <NavIcon name="tasks" />
+              <span className="sidebar-nav-label">Задачи</span>
+            </NavLink>
+          )}
+          {canCompanies && (
+            <NavLink to="/companies" title={sidebarCollapsed ? 'Компании' : undefined}>
+              <NavIcon name="building" />
+              <span className="sidebar-nav-label">Компании</span>
+            </NavLink>
+          )}
+          {canClients && (
+            <NavLink to="/clients" title={sidebarCollapsed ? 'Клиенты' : undefined}>
+              <NavIcon name="users" />
+              <span className="sidebar-nav-label">Клиенты</span>
+            </NavLink>
+          )}
+          {canPolicies && (
+            <NavLink to="/policies" title={sidebarCollapsed ? 'Полисы' : undefined}>
+              <NavIcon name="file" />
+              <span className="sidebar-nav-label">Полисы</span>
+            </NavLink>
+          )}
+          {canAnalytics && (
             <NavLink to="/analytics" title={sidebarCollapsed ? 'Аналитика' : undefined}>
               <NavIcon name="chart" />
               <span className="sidebar-nav-label">Аналитика</span>
             </NavLink>
           )}
-          {(showAdminSettings || me.role === 'SUPER_MANAGER') && (
+          {canSettings && (
             <NavLink to="/settings" title={sidebarCollapsed ? 'Настройки' : undefined}>
               <NavIcon name="gear" />
               <span className="sidebar-nav-label">Настройки</span>
             </NavLink>
           )}
         </nav>
+        {!sidebarCollapsed ? (
+          <p className="sidebar-license mono" aria-live="polite">
+            v{license.productVersion || '—'}
+            {license.status === 'demo' && demoLabel ? ` · Демо: ${demoLabel}` : null}
+            {license.status === 'full' ? ' · Лицензия активна' : null}
+          </p>
+        ) : null}
       </aside>
       <div className="app-main-col">
         <header className="topbar">
           <span className="topbar-title">{sectionTitle(loc.pathname)}</span>
           <div className="topbar-actions">
             <div className="topbar-user">
-              <span className="badge">{me.login}</span>
+              <Badge>{me.login}</Badge>
             </div>
             <div className="popover-anchor" ref={themePopoverRef}>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
+              <Btn
+                variant="ghost"
+                size="sm"
                 aria-expanded={themeOpen}
                 aria-haspopup="menu"
                 onClick={() => setThemeOpen((v) => !v)}
               >
                 Тема
-              </button>
+              </Btn>
               {themeOpen && (
                 <div className="theme-popover" role="menu">
-                  <button type="button" className="btn btn--ghost btn--sm" role="menuitem" onClick={() => void setTheme('light')}>
+                  <Btn variant="ghost" size="sm" role="menuitem" onClick={() => void setTheme('light')}>
                     Светлая
-                  </button>
-                  <button type="button" className="btn btn--ghost btn--sm" role="menuitem" onClick={() => void setTheme('dark')}>
+                  </Btn>
+                  <Btn variant="ghost" size="sm" role="menuitem" onClick={() => void setTheme('dark')}>
                     Тёмная
-                  </button>
+                  </Btn>
                 </div>
               )}
             </div>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => logout()}>
+            <Btn variant="ghost" size="sm" onClick={() => logout()}>
               Выход
-            </button>
+            </Btn>
           </div>
         </header>
-        <main>
+        <main id="main-content" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

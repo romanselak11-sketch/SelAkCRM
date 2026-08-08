@@ -1,0 +1,51 @@
+---
+description: 'Swiss Brutalism v1.0 — визуальная система SelAkCRM. Обязательно при правках UI, CSS, React-компонентов оформления.'
+globs: frontend/**/*.{tsx,ts,css,html}
+alwaysApply: false
+---
+
+# Swiss Brutalism (SelAkCRM)
+
+Источник правды: `docs/design-system.md` + токены `frontend/src/styles/tokens.css`.
+
+## Философия
+
+- Функция > декор. Нет теней, градиентов, скруглений >8px.
+- Читаемость данных важнее «красоты». Плотность: строки таблицы 48–56px.
+- Единственная бренд-переменная клиента: `--accent` / `--accent-hover`. Остальное не трогать при white-label.
+
+## Токены — не хардкодить цвета
+
+Используй CSS-переменные (`--bg-page`, `--bg-surface`, `--text-primary`, `--text-secondary`, `--border-default`, `--border-input`, `--accent`, `--danger`, `--success`). Legacy-алиасы `--bg` / `--fg` / `--surface` допустимы, но новые стили пиши на spec-именах.
+
+## Типографика
+
+- UI: **Inter**. Числа/суммы в таблицах и KPI: **JetBrains Mono** + `tabular-nums`.
+- Body CRM: **14px** (`--text-md`). H1 24 / H2 20 / H3 16 / Caption 12.
+- Не возвращать Plus Jakarta Sans и «воздушные» 16px body.
+
+## Компоненты
+
+| Слой | Правило |
+|------|---------|
+| Кнопки | Только `Btn` / `buildBtnClassName`. Primary = flat `--accent`, без градиента. Secondary = border `--text-primary`. Ghost / danger-soft по ТЗ. |
+| Таблицы | `DataTable*`. Числа: `numeric`. Даты: `date`. Срок/длинный статус с обрезкой: `fit` + ellipsis (детали в модалке). Колонка действий: `DataTableActionCell` / `col--narrow` — фиксированная ширина, без обрезки кнопок. Без вертикальных разделителей. |
+| Формы | Label над полем (Caption). Focus: border `--text-primary` + ring accent 20%. Ошибка: border `--danger`, фон инпута не менять. Money/decimal: автовыделение через `ValidatedInput`. |
+| Статусы | Точка + текст (`TaskStatusBadge`), не цветные плашки. |
+| Сайдбар | 240 / 64. Активный: `--bg-page` + левая полоса 3px `--accent`. Иконки 20×20, stroke 1.5. |
+
+## Запрещено
+
+- `box-shadow` для «глубины», `linear-gradient` на кнопках/карточках/сайдбаре
+- `border-radius` > 8px (в т.ч. `999px` pills)
+- Сырые `className="btn …"` вне `Btn`
+- Новые цвета вне токенов; фиолетовые/«AI purple» акценты
+- Горизонтальный скролл таблицы ради полного текста срока — обрезай (`fit`), полный текст в задаче
+
+## Чек-лист перед сдачей UI
+
+1. Интерфейс читаем без акцента (структура на нейтралях).
+2. Числовые столбцы — mono + вправо (`numeric`).
+3. Нет теней / градиентов / radius >8px.
+4. Есть hover / focus-visible / disabled / error.
+5. Статусы = точка + текст.

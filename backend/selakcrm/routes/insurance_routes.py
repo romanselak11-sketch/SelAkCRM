@@ -6,37 +6,42 @@ from sqlalchemy.orm import Session, joinedload
 
 from selakcrm.database import get_db
 from selakcrm.schemas_base import StrictBody
-from selakcrm.deps import JwtUser, get_current_user
+from selakcrm.deps import JwtUser, assert_permission, get_current_user
 from selakcrm.domain.search import company_search_where_clause, parse_search_tokens
 from selakcrm.ids import new_cuid
 from selakcrm.models import InsuranceCompany, InsuranceProduct
 from selakcrm.serializers import company_row, product_row
 from selakcrm.services.audit_log import audit_log
+from selakcrm.services.role_permissions import permissions_for_role
 from selakcrm.time_utils import utcnow
 
 router = APIRouter(tags=["insurance"])
 
 
-def _require_insurance_admin(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
+def _require_insurance_admin(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "insurance.write")
 
 
-def _require_insurance_read(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER", "MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
-
+def _require_insurance_read(db: Session, user: JwtUser) -> None:
+    """Чтение СК нужно для формы полиса и раздела компаний."""
+    have = set(permissions_for_role(db, user.role))
+    if not have.intersection(
+        {"nav.companies", "policies.create", "insurance.write", "tasks.create", "nav.policies"}
+    ):
+        raise HTTPException(
+            403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"}
+        )
 
 ALLOWED_LIMITS = {10, 25, 50}
 
 
 def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     try:
-        lim = int(limit_raw or "10")
+        lim = int(limit_raw or "25")
     except ValueError:
-        lim = 10
+        lim = 25
     if lim not in ALLOWED_LIMITS:
-        lim = 10
+        lim = 25
     try:
         page = int(page_raw or "1")
     except ValueError:
@@ -54,7 +59,7 @@ def list_companies(
     limit: str | None = None,
     q: str | None = None,
 ) -> dict:
-    _require_insurance_read(user)
+    _require_insurance_read(db, user)
     p, lim = _page_limit(page, limit)
     skip = (p - 1) * lim
     tokens = parse_search_tokens(q)
@@ -101,7 +106,7 @@ def create_company(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     now = utcnow()
     c = InsuranceCompany(id=new_cuid(), name=body.name, createdAt=now, updatedAt=now)
     db.add(c)
@@ -123,7 +128,7 @@ def update_company(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     c = db.get(InsuranceCompany, company_id)
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -144,7 +149,7 @@ def archive_company(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     c = db.get(InsuranceCompany, company_id)
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -159,7 +164,7 @@ def restore_company(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     c = db.get(InsuranceCompany, company_id)
     if not c:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -174,7 +179,7 @@ def list_products(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    _require_insurance_read(user)
+    _require_insurance_read(db, user)
     items = (
         db.query(InsuranceProduct)
         .filter(InsuranceProduct.companyId == company_id, InsuranceProduct.deletedAt.is_(None))
@@ -198,7 +203,7 @@ def create_product(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     now = utcnow()
     p = InsuranceProduct(
         id=new_cuid(),
@@ -237,7 +242,7 @@ def update_product(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     p = db.get(InsuranceProduct, product_id)
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -273,7 +278,7 @@ def archive_product(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     p = db.get(InsuranceProduct, product_id)
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
@@ -288,7 +293,7 @@ def restore_product(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_insurance_admin(user)
+    _require_insurance_admin(db, user)
     p = db.get(InsuranceProduct, product_id)
     if not p:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})

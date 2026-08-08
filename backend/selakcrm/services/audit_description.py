@@ -103,6 +103,9 @@ def describe_audit_event(
         return f"{actor} удалил из системы пользователя «{login}»."
     if action == "USER_RESTORE":
         return f"{actor} восстановил пользователя в системе."
+    if action == "ROLE_PERMISSIONS_UPDATE":
+        role = _role_ru(entity_id)
+        return f"{actor} обновил права роли «{role}»."
 
     if action == "CLIENT_CREATE":
         ln = _str(p.get("lastName")) or ""

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api';
 import { PolicyForm } from './PolicyForm';
 import { Modal } from './Modal';
+import { FieldLabel } from './FieldLabel';
 import { Stack } from './Stack';
 import { ScrollableChoiceList } from './ScrollableChoiceList';
+import { Btn } from './Btn';
+import { FormActions, FormError } from './FormActions';
 
 type PolicyPick = {
   id: string;
@@ -109,24 +112,28 @@ export function ManualRenewalTaskModal({ open, onClose, onCreated }: ManualRenew
           role="tablist"
           aria-label="Способ создания"
         >
-          <button
-            type="button"
+          <Btn
             role="tab"
             aria-selected={mode === 'new'}
-            className={`btn btn--sm ${mode === 'new' ? 'btn--primary' : 'btn--ghost'}`}
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={mode === 'new'}
             onClick={() => setMode('new')}
           >
             Новый полис
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
             role="tab"
             aria-selected={mode === 'existing'}
-            className={`btn btn--sm ${mode === 'existing' ? 'btn--primary' : 'btn--ghost'}`}
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={mode === 'existing'}
             onClick={() => setMode('existing')}
           >
             Существующий полис
-          </button>
+          </Btn>
         </Stack>
 
         {mode === 'new' ? (
@@ -142,7 +149,7 @@ export function ManualRenewalTaskModal({ open, onClose, onCreated }: ManualRenew
         ) : (
           <div className="manual-task-modal__existing form-grid">
             <label className="field">
-              <span className="field-label">Поиск полиса</span>
+              <FieldLabel hint="Номер полиса или ФИО">Поиск полиса</FieldLabel>
               <input
                 type="search"
                 value={policySearch}
@@ -152,7 +159,7 @@ export function ManualRenewalTaskModal({ open, onClose, onCreated }: ManualRenew
               />
             </label>
             <div className="field">
-              <span className="field-label">Полис</span>
+              <FieldLabel hint="Полис для задачи продления">Полис</FieldLabel>
               <ScrollableChoiceList
                 value={policyId}
                 onChange={setPolicyId}
@@ -163,29 +170,16 @@ export function ManualRenewalTaskModal({ open, onClose, onCreated }: ManualRenew
                 emptySearchText="Полисы не найдены"
               />
             </div>
-            {policyLoadErr ? (
-              <p className="form-error" role="alert">
-                {policyLoadErr}
-              </p>
-            ) : null}
-            {submitErr ? (
-              <p className="form-error" role="alert">
-                {submitErr}
-              </p>
-            ) : null}
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={busy}
-                onClick={() => void submitExisting()}
-              >
+            <FormError>{policyLoadErr}</FormError>
+            <FormError>{submitErr}</FormError>
+            <FormActions>
+              <Btn variant="primary" disabled={busy} onClick={() => void submitExisting()}>
                 Создать задачу
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>
+              </Btn>
+              <Btn variant="ghost" onClick={onClose} disabled={busy}>
                 Отмена
-              </button>
-            </div>
+              </Btn>
+            </FormActions>
           </div>
         )}
       </div>

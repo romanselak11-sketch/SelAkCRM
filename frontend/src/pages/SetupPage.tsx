@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
-import { FieldHint } from '../components/FieldHint';
+import { AuthCard } from '../components/AuthCard';
+import { Btn } from '../components/Btn';
+import { FormActions, FormError } from '../components/FormActions';
+import { FieldLabel } from '../components/FieldLabel';
+import { LoadingScreen } from '../components/LoadingScreen';
 import { ValidatedInput } from '../components/ValidatedInput';
 import { setDocumentTitle } from '../utils/documentTitle';
 
@@ -38,44 +42,30 @@ export function SetupPage() {
     }
   }
 
-  if (needs === null) return <p className="loading-screen">Загрузка…</p>;
+  if (needs === null) return <LoadingScreen />;
 
   return (
-    <div className="auth-layout">
-      <div className="card card--pad-lg auth-card">
-        <div className="page-titles auth-card-intro">
-          <p className="sidebar-brand-mark" style={{ fontSize: '1.25rem' }}>
-            SelAkCRM
-          </p>
-          <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-            Первичная настройка
-          </h1>
-          <p className="page-sub">Создайте учётную запись супер-администратора (пароль не менее 10 символов).</p>
-        </div>
-        <form className="form-grid form-grid--one" onSubmit={onSubmit}>
-          <label className="field">
-            <span className="field-label">Логин супер-админа</span>
-            <ValidatedInput kind="login" value={login} onChange={setLogin} />
-          </label>
-          <label className="field">
-            <span className="field-label">
-              Пароль
-              <FieldHint>Любые символы, не короче 10</FieldHint>
-            </span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </label>
-          {err && (
-            <p className="form-error" role="alert">
-              {err}
-            </p>
-          )}
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit">
-              Завершить установку
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AuthCard
+      brand="SelAkCRM"
+      title="Первичная настройка"
+      subtitle="Создайте учётную запись супер-администратора (пароль не менее 10 символов)."
+    >
+      <form className="form-grid form-grid--one" onSubmit={onSubmit}>
+        <label className="field">
+          <FieldLabel hint="Имя для входа">Логин супер-админа</FieldLabel>
+          <ValidatedInput kind="login" value={login} onChange={setLogin} />
+        </label>
+        <label className="field">
+          <FieldLabel hint="Не короче 10 символов">Пароль</FieldLabel>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+        <FormError>{err}</FormError>
+        <FormActions>
+          <Btn variant="primary" type="submit">
+            Завершить установку
+          </Btn>
+        </FormActions>
+      </form>
+    </AuthCard>
   );
 }

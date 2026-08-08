@@ -2,14 +2,37 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, api } from '../api';
 import { useAuth } from '../auth';
+import { hasPermission } from '../domain/permissions';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Btn } from '../components/Btn';
+import { Card, CardHeader } from '../components/Card';
+import {
+  DataTable,
+  DataTableActionCell,
+  DataTableBody,
+  DataTableClickRow,
+  DataTableEmpty,
+  DataTableHead,
+  DataTableTd,
+  DataTableTh,
+} from '../components/DataTable';
+import { EmptyHint } from '../components/EmptyHint';
+import { EntityList, EntityListItem, EntityListMeta } from '../components/EntityList';
+import { FormActions, FormError } from '../components/FormActions';
+import { ListSearchInput, ListToolbar } from '../components/ListToolbar';
 import { Modal } from '../components/Modal';
-import { PageHeading } from '../components/PageHeading';
+import { PageHeader } from '../components/PageHeader';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
+import { FieldLabel } from '../components/FieldLabel';
 import { ValidatedInput } from '../components/ValidatedInput';
-import { buildListQueryString, type ListPageSize, type Paginated } from '../utils/listPagination';
+import {
+  DEFAULT_LIST_PAGE_SIZE,
+  buildListQueryString,
+  type ListPageSize,
+  type Paginated,
+} from '../utils/listPagination';
 import { formatMoneyForField, normalizeMoneyForApi } from '../utils/moneyInput';
 
 type Company = {
@@ -37,11 +60,11 @@ function formatProductRubles(v: string | number | null | undefined): string | nu
 
 export function CompaniesPage() {
   const { me } = useAuth();
-  const canEditInsurance = me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER';
+  const canEditInsurance = hasPermission(me, 'insurance.write');
   const [rows, setRows] = useState<Company[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [listPage, setListPage] = useState(1);
-  const [listLimit, setListLimit] = useState<ListPageSize>(10);
+  const [listLimit, setListLimit] = useState<ListPageSize>(DEFAULT_LIST_PAGE_SIZE);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -252,13 +275,13 @@ export function CompaniesPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <PageHeading title="Страховые компании" hint="Справочник партнёров и продуктов" />
-        <div className="page-actions">
-          {canEditInsurance ? (
-            <button
-              type="button"
-              className="btn btn--primary"
+      <PageHeader
+        title="Страховые компании"
+        hint="Справочник партнёров и продуктов"
+        actions={
+          canEditInsurance ? (
+            <Btn
+              variant="primary"
               onClick={() => {
                 setName('');
                 setFormError(null);
@@ -266,10 +289,10 @@ export function CompaniesPage() {
               }}
             >
               Новая компания
-            </button>
-          ) : null}
-        </div>
-      </header>
+            </Btn>
+          ) : null
+        }
+      />
 
       <ConfirmModal
         open={archiveCompanyId !== null}
@@ -288,31 +311,21 @@ export function CompaniesPage() {
         description="Добавьте страховую компанию в справочник. Продукты можно настроить позже."
         size="sm"
       >
-        <form onSubmit={onCreate} className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+        <form onSubmit={onCreate} className="form-grid form-grid--one">
           <label className="field">
-            <span className="field-label">Название</span>
-            <ValidatedInput
-              kind="text"
-              value={name}
-              onChange={setName}
-              hint="Например: АО «Ромашка»"
-              required
-            />
+            <FieldLabel hint="Как в договорах">Название</FieldLabel>
+            <ValidatedInput kind="text" value={name} onChange={setName} required />
           </label>
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit">
+          <FormActions>
+            <Btn variant="primary" type="submit">
               Добавить
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => setModalOpen(false)}>
+            </Btn>
+            <Btn variant="ghost" onClick={() => setModalOpen(false)}>
               Отмена
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         </form>
-        {formError ? (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        ) : null}
+        <FormError>{formError}</FormError>
       </Modal>
 
       <Modal
@@ -324,25 +337,23 @@ export function CompaniesPage() {
       >
         <form
           onSubmit={(ev) => void onSaveCompanyName(ev)}
-          className="form-grid form-grid--one"
-          style={{ marginBottom: 'var(--space-5)' }}
+          className="form-grid form-grid--one u-mb-5"
         >
           <label className="field">
-            <span className="field-label">Название компании</span>
+            <FieldLabel hint="Как в договорах">Название компании</FieldLabel>
             <ValidatedInput
               kind="text"
               value={companyEditName}
               onChange={setCompanyEditName}
-              hint="Например: АО «Ромашка»"
               minLength={1}
               required
             />
           </label>
           {canEditInsurance ? (
-            <div className="form-actions">
-              <button
+            <FormActions>
+              <Btn
                 type="submit"
-                className="btn btn--primary"
+                variant="primary"
                 disabled={
                   companySaving ||
                   !companyEditName.trim() ||
@@ -350,85 +361,50 @@ export function CompaniesPage() {
                 }
               >
                 {companySaving ? 'Сохранение…' : 'Сохранить название'}
-              </button>
-            </div>
+              </Btn>
+            </FormActions>
           ) : null}
         </form>
 
         {companyProducts.length === 0 ? (
-          <p className="empty-hint empty-hint--panel" style={{ marginBottom: 'var(--space-5)' }}>
+          <EmptyHint variant="panel" className="u-mb-5">
             Продуктов пока нет.
-          </p>
+          </EmptyHint>
         ) : (
-          <ul
-            style={{
-              listStyle: 'none',
-              padding: 0,
-              margin: '0 0 var(--space-5)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              overflow: 'hidden',
-            }}
-          >
+          <EntityList spaced>
             {companyProducts.map((p) => (
-              <li
-                key={p.id}
-                style={{
-                  padding: 'var(--space-3) var(--space-3)',
-                  borderBottom: '1px solid var(--border)',
-                  fontSize: '0.9375rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 'var(--space-3)',
-                  background:
-                    editingProductId === p.id ? 'var(--surface-2)' : undefined,
-                }}
-              >
+              <EntityListItem key={p.id} active={editingProductId === p.id}>
                 <div>
                   <span>{p.name}</span>
                   {formatProductPct(p.defaultPremiumPct) != null ? (
-                    <span style={{ color: 'var(--fg-muted)', marginLeft: '0.5rem' }}>
-                      P% {formatProductPct(p.defaultPremiumPct)}
-                    </span>
+                    <EntityListMeta>P% {formatProductPct(p.defaultPremiumPct)}</EntityListMeta>
                   ) : null}
                   {formatProductRubles(p.defaultPremiumRubles) != null ? (
-                    <span style={{ color: 'var(--fg-muted)', marginLeft: '0.5rem' }}>
-                      P₽ {formatProductRubles(p.defaultPremiumRubles)}
-                    </span>
+                    <EntityListMeta>P₽ {formatProductRubles(p.defaultPremiumRubles)}</EntityListMeta>
                   ) : null}
                 </div>
                 {canEditInsurance ? (
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => startEditProduct(p)}
-                  >
+                  <Btn variant="ghost" size="sm" onClick={() => startEditProduct(p)}>
                     Изменить
-                  </button>
+                  </Btn>
                 ) : null}
-              </li>
+              </EntityListItem>
             ))}
-          </ul>
+          </EntityList>
         )}
         {canEditInsurance ? (
           <form
             onSubmit={(ev) => void onProductFormSubmit(ev)}
-            className="form-grid"
-            style={{ gridTemplateColumns: '1fr' }}
+            className="form-grid form-grid--one"
           >
             <label className="field">
-              <span className="field-label">{editingProductId ? 'Название' : 'Новый продукт'}</span>
-              <ValidatedInput
-                kind="text"
-                value={productName}
-                onChange={setProductName}
-                hint="Например: ОСАГО"
-                required
-              />
+              <FieldLabel hint="Например: ОСАГО">
+                {editingProductId ? 'Название' : 'Новый продукт'}
+              </FieldLabel>
+              <ValidatedInput kind="text" value={productName} onChange={setProductName} required />
             </label>
             <label className="field">
-              <span className="field-label">Комиссия агента в %</span>
+              <FieldLabel hint="Процент по умолчанию">Комиссия агента в %</FieldLabel>
               <ValidatedInput
                 kind="decimal"
                 value={productPremiumPct}
@@ -436,7 +412,7 @@ export function CompaniesPage() {
               />
             </label>
             <label className="field">
-              <span className="field-label">Комиссия агента в ₽</span>
+              <FieldLabel hint="Сумма по умолчанию, ₽">Комиссия агента в ₽</FieldLabel>
               <ValidatedInput
                 kind="money"
                 value={productPremiumRubles}
@@ -444,96 +420,79 @@ export function CompaniesPage() {
                 onBlur={() => setProductPremiumRubles((v) => formatMoneyForField(v))}
               />
             </label>
-            <div className="form-actions">
-              <button className="btn btn--primary" type="submit">
+            <FormActions>
+              <Btn variant="primary" type="submit">
                 {editingProductId ? 'Сохранить' : 'Добавить продукт'}
-              </button>
+              </Btn>
               {editingProductId ? (
-                <button type="button" className="btn btn--ghost" onClick={resetProductForm}>
+                <Btn variant="ghost" onClick={resetProductForm}>
                   Отменить редактирование
-                </button>
+                </Btn>
               ) : null}
-              <button type="button" className="btn btn--ghost" onClick={closeProductsModal}>
+              <Btn variant="ghost" onClick={closeProductsModal}>
                 Закрыть
-              </button>
-            </div>
+              </Btn>
+            </FormActions>
           </form>
         ) : (
-          <div className="form-actions">
-            <button type="button" className="btn btn--ghost" onClick={closeProductsModal}>
+          <FormActions>
+            <Btn variant="ghost" onClick={closeProductsModal}>
               Закрыть
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         )}
-        {formError ? (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        ) : null}
+        <FormError>{formError}</FormError>
       </Modal>
 
-      <section className="card">
-        {listError ? (
-          <p className="form-error" role="alert">
-            {listError}
-          </p>
-        ) : null}
-        <div className="card-header">
-          <h2 className="card-title">Каталог</h2>
-        </div>
-        <div className="list-search-row">
-          <input
-            type="search"
+      <Card>
+        <FormError>{listError}</FormError>
+        <CardHeader title="Каталог" />
+        <ListToolbar>
+          <ListSearchInput
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={setSearchInput}
             placeholder="Поиск по названию компании…"
             aria-label="Поиск компаний по названию"
           />
-        </div>
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th className="col--narrow" aria-label="Действия" />
-              </tr>
-            </thead>
-            <tbody>
-              {listTotal === 0 ? (
-                <tr className="data-table__empty-row">
-                  <td colSpan={2}>
-                    <p className="empty-hint empty-hint--in-cell">
-                      {debouncedQ
-                        ? 'Ничего не найдено — измените запрос.'
-                        : 'Компаний пока нет — добавьте первую через «Новая компания».'}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                rows.map((c) => (
-                  <tr
-                    key={c.id}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setSelectedCompany(c)}
-                  >
-                    <td>{c.name}</td>
-                    <td className="col--narrow" onClick={(e) => e.stopPropagation()}>
-                      {canEditInsurance ? (
-                        <button
-                          type="button"
-                          className="btn btn--danger-soft btn--sm"
-                          onClick={() => setArchiveCompanyId(c.id)}
-                        >
-                          В архив
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        </ListToolbar>
+        <DataTable>
+          <DataTableHead>
+            <tr>
+              <DataTableTh>Название</DataTableTh>
+              <DataTableTh narrow aria-label="Действия" />
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {listTotal === 0 ? (
+              <DataTableEmpty colSpan={2}>
+                {debouncedQ
+                  ? 'Ничего не найдено — измените запрос.'
+                  : 'Компаний пока нет — добавьте первую через «Новая компания».'}
+              </DataTableEmpty>
+            ) : (
+              rows.map((c) => (
+                <DataTableClickRow
+                  key={c.id}
+                  onActivate={() => setSelectedCompany(c)}
+                  ariaLabel={`Открыть компанию ${c.name}`}
+                >
+                  <DataTableTd>{c.name}</DataTableTd>
+                  <DataTableActionCell>
+                    {canEditInsurance ? (
+                      <Btn
+                        variant="danger-soft"
+                        size="sm"
+                        onClick={() => setArchiveCompanyId(c.id)}
+                      >
+                        В архив
+                      </Btn>
+                    ) : null}
+                  </DataTableActionCell>
+                </DataTableClickRow>
+              ))
+            )}
+          </DataTableBody>
+        </DataTable>
         <ListPaginationFooter
           total={listTotal}
           page={listPage}
@@ -545,7 +504,7 @@ export function CompaniesPage() {
           }}
           navAriaLabel="Страницы каталога компаний"
         />
-      </section>
+      </Card>
     </div>
   );
 }

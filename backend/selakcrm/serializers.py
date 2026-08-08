@@ -100,6 +100,7 @@ def policy_row(p: Policy) -> dict[str, Any]:
         "startDate": _iso(p.startDate),
         "endDate": _iso(p.endDate),
         "termDays": p.termDays,
+        "createdByUserId": p.createdByUserId,
         "createdAt": _iso(p.createdAt),
         "updatedAt": _iso(p.updatedAt),
         "deletedAt": _iso(p.deletedAt),
@@ -114,13 +115,16 @@ def policy_full(p: Policy) -> dict[str, Any]:
     return d
 
 
-def user_public(u: User) -> dict[str, Any]:
-    return {
+def user_public(u: User, permissions: list[str] | None = None) -> dict[str, Any]:
+    d: dict[str, Any] = {
         "id": u.id,
         "login": u.login,
         "role": u.role,
         "theme": u.theme,
     }
+    if permissions is not None:
+        d["permissions"] = permissions
+    return d
 
 
 def renewal_task_hours_minutes(end_date: datetime, from_dt: datetime) -> str:

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from '../api';
 import { formatIsoDateRu } from '../utils/formatters';
+import { DEFAULT_LIST_PAGE_SIZE, type ListPageSize } from '../utils/listPagination';
+import { EmptyHint } from './EmptyHint';
+import { FormError } from './FormActions';
+import { ListPaginationFooter } from './ListPaginationFooter';
 import { Modal } from './Modal';
-import { PaginationControls } from './PaginationControls';
 
 type ClientPhone = { id: string; phone: string };
 
@@ -39,8 +42,6 @@ type ClientDetailsModalProps = {
   reloadNonce?: number;
 };
 
-const POLICY_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
-
 export function ClientDetailsModal({
   open,
   client,
@@ -56,7 +57,7 @@ export function ClientDetailsModal({
     total: number;
   }>({ key: null, policies: [], error: null, total: 0 });
   const [policyPage, setPolicyPage] = useState(1);
-  const [policyPageSize, setPolicyPageSize] = useState<(typeof POLICY_PAGE_SIZE_OPTIONS)[number]>(20);
+  const [policyPageSize, setPolicyPageSize] = useState<ListPageSize>(DEFAULT_LIST_PAGE_SIZE);
 
   const requestKey =
     open && client && canViewPolicies
@@ -66,7 +67,9 @@ export function ClientDetailsModal({
   useEffect(() => {
     if (!requestKey || !client) return;
     let cancelled = false;
-    void api<ClientPoliciesResponse>(`/clients/${client.id}/policies?page=${policyPage}&pageSize=${policyPageSize}`)
+    void api<ClientPoliciesResponse>(
+      `/clients/${client.id}/policies?page=${policyPage}&pageSize=${policyPageSize}`,
+    )
       .then((res) => {
         if (cancelled) return;
         setResult({ key: requestKey, policies: res.items, error: null, total: res.total });
@@ -84,10 +87,6 @@ export function ClientDetailsModal({
       cancelled = true;
     };
   }, [requestKey, client, policyPage, policyPageSize]);
-
-  const totalPolicyPages = Math.max(1, Math.ceil(result.total / policyPageSize));
-  const canGoPrev = policyPage > 1;
-  const canGoNext = policyPage < totalPolicyPages;
 
   const fullName = useMemo(() => {
     if (!client) return '';
@@ -117,7 +116,7 @@ export function ClientDetailsModal({
             <div className="client-details__phones">
               <span className="client-details__label">Телефоны</span>
               {phones.length === 0 ? (
-                <p className="empty-hint empty-hint--in-card">Нет телефонов</p>
+                <EmptyHint variant="inCard">Телефоны не указаны. Добавьте номер при редактировании клиента.</EmptyHint>
               ) : (
                 <ul className="client-details__phone-list">
                   {phones.map((phone) => (
@@ -136,15 +135,13 @@ export function ClientDetailsModal({
             </div>
 
             {!canViewPolicies ? (
-              <p className="empty-hint empty-hint--in-card">Полисы доступны только руководителям.</p>
+              <EmptyHint variant="inCard">Полисы доступны только руководителям.</EmptyHint>
             ) : requestKey !== null && result.key !== requestKey ? (
-              <p className="empty-hint empty-hint--in-card">Загрузка полисов…</p>
+              <EmptyHint variant="inCard">Загрузка полисов…</EmptyHint>
             ) : result.error ? (
-              <p className="form-error" role="alert">
-                {result.error}
-              </p>
+              <FormError>{result.error}</FormError>
             ) : result.policies.length === 0 ? (
-              <p className="empty-hint empty-hint--in-card">У клиента пока нет полисов.</p>
+              <EmptyHint variant="inCard">У клиента пока нет полисов.</EmptyHint>
             ) : (
               <div className="client-details__policies" role="list" aria-label="Список полисов клиента">
                 {result.policies.map((policy) => (
@@ -171,7 +168,9 @@ export function ClientDetailsModal({
                       </div>
                       <div className="client-details__policy-meta-item">
                         <span className="client-details__policy-meta-label">Действует до</span>
-                        <span className="client-details__policy-meta-value">{formatIsoDateRu(policy.endDate)}</span>
+                        <span className="client-details__policy-meta-value">
+                          {formatIsoDateRu(policy.endDate)}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -179,39 +178,19 @@ export function ClientDetailsModal({
               </div>
             )}
 
-            {canViewPolicies && (
-              <div className="client-details__pagination">
-                <label className="client-details__pagination-size">
-                  <span>Показывать</span>
-                  <select
-                    value={policyPageSize}
-                    onChange={(e) => {
-                      setPolicyPageSize(Number(e.target.value) as (typeof POLICY_PAGE_SIZE_OPTIONS)[number]);
-                      setPolicyPage(1);
-                    }}
-                  >
-                    {POLICY_PAGE_SIZE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <PaginationControls
-                  page={policyPage}
-                  totalPages={totalPolicyPages}
-                  onPageChange={setPolicyPage}
-                  ariaLabel="Страницы полисов клиента"
-                  prevDisabled={!canGoPrev || (requestKey !== null && result.key !== requestKey)}
-                  nextDisabled={!canGoNext || (requestKey !== null && result.key !== requestKey)}
-                  center={
-                    <span className="pagination-controls__meta client-details__pagination-meta">
-                      Стр. {policyPage} из {totalPolicyPages}
-                    </span>
-                  }
-                />
-              </div>
-            )}
+            {canViewPolicies ? (
+              <ListPaginationFooter
+                total={result.total}
+                page={policyPage}
+                limit={policyPageSize}
+                onPageChange={setPolicyPage}
+                onLimitChange={(l) => {
+                  setPolicyPageSize(l);
+                  setPolicyPage(1);
+                }}
+                navAriaLabel="Страницы полисов клиента"
+              />
+            ) : null}
           </section>
         </div>
       )}

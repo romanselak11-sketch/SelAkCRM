@@ -33,7 +33,10 @@ npm run dev
 
 Откройте `http://localhost:5173`, пройдите `/setup` и войдите.
 
-## CI
+## Документация
+
+- [Лицензирование](docs/licensing.md) — демо, ключи, коды активации, License Admin
+- [Перенос данных](docs/DATA_MIGRATION.md)
 
 В репозитории настроен GitHub Actions: backend (`ruff`, `pytest`) и frontend (`lint`, `test`, `build`).
 Артефакты сборки (`backend/build`, `backend/dist`, `frontend/dist`) не коммитятся в репозиторий.

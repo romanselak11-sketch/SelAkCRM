@@ -3,7 +3,15 @@ import { createPortal } from 'react-dom';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import { ru } from 'date-fns/locale/ru';
 import 'react-day-picker/style.css';
+import {
+  ANALYTICS_MAX_PERIOD_DAYS,
+  analyticsPeriodDayCount,
+  isAnalyticsPeriodTooLong,
+} from '../domain/analytics';
 import { parseLocalYMD, toLocalYMD } from '../utils/localDate';
+import { Btn } from './Btn';
+import { ControlTrigger } from './ControlTrigger';
+import { FormError } from './FormActions';
 
 export type AnalyticsPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -36,6 +44,7 @@ export function AnalyticsPeriodPicker({
   const [draft, setDraft] = useState<DateRange | undefined>(() => rangeFromStrings(from, to));
   const [month, setMonth] = useState<Date>(() => parseLocalYMD(from) ?? new Date());
   const [monthsShown, setMonthsShown] = useState(2);
+  const [rangeErr, setRangeErr] = useState<string | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -92,7 +101,7 @@ export function AnalyticsPeriodPicker({
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
     };
-  }, [open, monthsShown]);
+  }, [open, monthsShown, rangeErr]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +131,7 @@ export function AnalyticsPeriodPicker({
     getRange: () => { from: string; to: string },
   ) {
     const r = getRange();
+    setRangeErr(null);
     onApply(r.from, r.to, p);
     setOpen(false);
   }
@@ -131,6 +141,12 @@ export function AnalyticsPeriodPicker({
     const a = toLocalYMD(draft.from);
     const b = toLocalYMD(draft.to);
     const [fromYmd, toYmd] = a <= b ? [a, b] : [b, a];
+    if (isAnalyticsPeriodTooLong(fromYmd, toYmd)) {
+      const days = analyticsPeriodDayCount(fromYmd, toYmd);
+      setRangeErr(`Период не больше ${ANALYTICS_MAX_PERIOD_DAYS} дней (сейчас ${days})`);
+      return;
+    }
+    setRangeErr(null);
     onApply(fromYmd, toYmd, 'custom');
     setOpen(false);
   }
@@ -147,38 +163,46 @@ export function AnalyticsPeriodPicker({
         aria-label="Выбор периода"
       >
         <div className="analytics-period-popover__presets" role="group" aria-label="Быстрый период">
-          <button
-            type="button"
-            className={preset === 'yesterday' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm'}
+          <Btn
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={preset === 'yesterday'}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyPreset('yesterday', presetYesterday)}
           >
             Вчера
-          </button>
-          <button
-            type="button"
-            className={preset === 'today' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm'}
+          </Btn>
+          <Btn
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={preset === 'today'}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyPreset('today', presetToday)}
           >
             Сегодня
-          </button>
-          <button
-            type="button"
-            className={preset === 'week' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm'}
+          </Btn>
+          <Btn
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={preset === 'week'}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyPreset('week', presetWeek)}
           >
             Неделя
-          </button>
-          <button
-            type="button"
-            className={preset === 'month' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm'}
+          </Btn>
+          <Btn
+            variant="ghost"
+            size="sm"
+            pill
+            softActive={preset === 'month'}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyPreset('month', presetMonth)}
           >
             Месяц
-          </button>
+          </Btn>
         </div>
 
         <DayPicker
@@ -188,40 +212,48 @@ export function AnalyticsPeriodPicker({
           month={month}
           onMonthChange={setMonth}
           selected={draft}
-          onSelect={setDraft}
+          onSelect={(next) => {
+            setDraft(next);
+            setRangeErr(null);
+          }}
           captionLayout="dropdown"
           startMonth={new Date(2000, 0)}
           endMonth={new Date(2040, 11)}
           className="date-field__daypicker analytics-period-popover__picker"
         />
 
+        {rangeErr ? (
+          <FormError className="analytics-period-popover__error">{rangeErr}</FormError>
+        ) : null}
+
         <div className="analytics-period-popover__footer">
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
+          <Btn
+            variant="ghost"
+            size="sm"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen(false)}
           >
             Отмена
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
+          </Btn>
+          <Btn
+            variant="primary"
+            size="sm"
             disabled={!rangeComplete}
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleApplyCustom}
           >
             Применить
-          </button>
+          </Btn>
         </div>
       </div>
     ) : null;
 
   return (
     <div className="analytics-period-picker" ref={rootRef}>
-      <button
+      <ControlTrigger
         ref={triggerRef}
-        type="button"
+        inline
+        soft
         className="analytics-period-picker__trigger"
         disabled={loading}
         aria-haspopup="dialog"
@@ -234,15 +266,15 @@ export function AnalyticsPeriodPicker({
             if (next) {
               setDraft(rangeFromStrings(from, to));
               setMonth(parseLocalYMD(from) ?? new Date());
+              setRangeErr(null);
             }
             return next;
           });
         }}
+        trailing={<span className="date-field__icon" aria-hidden />}
       >
-        <span className="analytics-period-picker__label">Период</span>
         <span className="analytics-period-picker__value">{formatRangeLabel(from, to)}</span>
-        <span className="date-field__icon" aria-hidden />
-      </button>
+      </ControlTrigger>
       {popover ? createPortal(popover, document.body) : null}
     </div>
   );

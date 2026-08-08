@@ -10,7 +10,7 @@ type FieldHintProps = {
 /** Подсказка к полю формы: иконка «?», текст при наведении. */
 export function FieldHint({ children, id, ariaLabel = 'Подсказка к полю' }: FieldHintProps) {
   return (
-    <HintTooltip id={id} ariaLabel={ariaLabel} className="field-hint">
+    <HintTooltip id={id} ariaLabel={ariaLabel}>
       {children}
     </HintTooltip>
   );

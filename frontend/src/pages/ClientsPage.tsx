@@ -3,17 +3,36 @@ import type { FormEvent } from 'react';
 import { api } from '../api';
 import type { ClientListItem, Paginated } from '../api.types';
 import { useAuth } from '../auth';
+import { hasPermission } from '../domain/permissions';
 import { ClientDetailsModal, type ClientDetails } from '../components/ClientDetailsModal';
+import { Btn } from '../components/Btn';
+import { Card, CardHeader } from '../components/Card';
+import {
+  DataTable,
+  DataTableActionCell,
+  DataTableBody,
+  DataTableClickRow,
+  DataTableEmpty,
+  DataTableHead,
+  DataTableTd,
+  DataTableTh,
+} from '../components/DataTable';
+import { FormActions } from '../components/FormActions';
 import { ListPaginationFooter } from '../components/ListPaginationFooter';
+import { ListSearchInput, ListToolbar } from '../components/ListToolbar';
 import { Modal } from '../components/Modal';
-import { PageHeading } from '../components/PageHeading';
+import { PageHeader } from '../components/PageHeader';
 import { PolicyDetailsModal } from '../components/PolicyDetailsModal';
 import { PolicyForm } from '../components/PolicyForm';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { setDocumentTitle } from '../utils/documentTitle';
-import { FieldHint } from '../components/FieldHint';
+import { FieldLabel } from '../components/FieldLabel';
 import { ValidatedInput } from '../components/ValidatedInput';
-import { buildListQueryString, type ListPageSize } from '../utils/listPagination';
+import {
+  DEFAULT_LIST_PAGE_SIZE,
+  buildListQueryString,
+  type ListPageSize,
+} from '../utils/listPagination';
 
 function ClientPhoneFields({
   phone,
@@ -27,11 +46,8 @@ function ClientPhoneFields({
   setExtraPhones: (value: string[] | ((prev: string[]) => string[])) => void;
 }) {
   return (
-    <div className="field" style={{ gridColumn: '1 / -1' }}>
-      <span className="field-label">
-        Телефон
-        <FieldHint>Например: +79001234567</FieldHint>
-      </span>
+    <div className="field field--span-all">
+      <FieldLabel hint="Основной номер клиента">Телефон</FieldLabel>
       <div className="phone-field__rows">
         <div className="phone-field__row">
           <ValidatedInput
@@ -41,17 +57,17 @@ function ClientPhoneFields({
             required
             autoComplete="tel"
             placeholder="+7 …"
-            hideHint
           />
-          <button
-            type="button"
-            className="btn btn--ghost phone-field__row-btn"
+          <Btn
+            variant="ghost"
+            size="icon"
+            className="phone-field__row-btn"
             title="Добавить ещё номер"
             aria-label="Добавить ещё номер"
             onClick={() => setExtraPhones((prev) => [...prev, ''])}
           >
             +
-          </button>
+          </Btn>
         </div>
         {extraPhones.map((val, i) => (
           <div key={i} className="phone-field__row">
@@ -65,17 +81,17 @@ function ClientPhoneFields({
               }}
               autoComplete="tel"
               placeholder="Доп. номер"
-              hideHint
             />
-            <button
-              type="button"
-              className="btn btn--ghost phone-field__row-btn"
+            <Btn
+              variant="ghost"
+              size="icon"
+              className="phone-field__row-btn"
               title="Убрать номер"
               aria-label="Убрать номер"
               onClick={() => setExtraPhones((prev) => prev.filter((_, j) => j !== i))}
             >
               ×
-            </button>
+            </Btn>
           </div>
         ))}
       </div>
@@ -103,7 +119,7 @@ export function ClientsPage() {
   const [rows, setRows] = useState<ClientListItem[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [listPage, setListPage] = useState(1);
-  const [listLimit, setListLimit] = useState<ListPageSize>(10);
+  const [listLimit, setListLimit] = useState<ListPageSize>(DEFAULT_LIST_PAGE_SIZE);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [lastName, setLastName] = useState('');
@@ -118,7 +134,9 @@ export function ClientsPage() {
   const [editPolicyId, setEditPolicyId] = useState<string | null>(null);
   const [policyReloadNonce, setPolicyReloadNonce] = useState(0);
   const { searchInput, setSearchInput, debouncedQ } = useDebouncedSearchQuery(setListPage);
-  const canManagePolicies = me?.role === 'SUPER_ADMIN' || me?.role === 'SUPER_MANAGER';
+  const canManagePolicies = hasPermission(me, 'clients.view_policies');
+  const canEditClients = hasPermission(me, 'clients.write');
+  const canEditPolicies = hasPermission(me, 'policies.edit');
 
   useEffect(() => {
     setDocumentTitle('Клиенты');
@@ -212,14 +230,17 @@ export function ClientsPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <PageHeading title="Клиенты" hint="Справочник клиентов" />
-        <div className="page-actions">
-          <button type="button" className="btn btn--primary" onClick={openCreate}>
-            Новый клиент
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="Клиенты"
+        hint="Справочник клиентов"
+        actions={
+          canEditClients ? (
+            <Btn variant="primary" onClick={openCreate}>
+              Новый клиент
+            </Btn>
+          ) : undefined
+        }
+      />
 
       <Modal
         open={modalOpen}
@@ -234,15 +255,15 @@ export function ClientsPage() {
       >
         <form className="form-grid" onSubmit={(ev) => void onSubmit(ev)}>
           <label className="field">
-            <span className="field-label">Фамилия</span>
+            <FieldLabel hint="Например: Иванов">Фамилия</FieldLabel>
             <ValidatedInput kind="personName" value={lastName} onChange={setLastName} required />
           </label>
           <label className="field">
-            <span className="field-label">Имя</span>
+            <FieldLabel hint="Например: Иван">Имя</FieldLabel>
             <ValidatedInput kind="personName" value={firstName} onChange={setFirstName} required />
           </label>
-          <label className="field" style={{ gridColumn: '1 / -1' }}>
-            <span className="field-label">Отчество</span>
+          <label className="field field--span-all">
+            <FieldLabel hint="Необязательно">Отчество</FieldLabel>
             <ValidatedInput kind="personName" value={middleName} onChange={setMiddleName} />
           </label>
           <ClientPhoneFields
@@ -251,33 +272,22 @@ export function ClientsPage() {
             extraPhones={extraPhones}
             setExtraPhones={setExtraPhones}
           />
-          <label className="field" style={{ gridColumn: '1 / -1' }}>
-            <span className="field-label">Email</span>
-            <ValidatedInput
-              kind="email"
-              type="email"
-              value={email}
-              onChange={setEmail}
-              hint="Необязательно. Например: user@mail.ru"
-            />
+          <label className="field field--span-all">
+            <FieldLabel hint="Необязательно">Email</FieldLabel>
+            <ValidatedInput kind="email" type="email" value={email} onChange={setEmail} />
           </label>
-          <label className="field" style={{ gridColumn: '1 / -1' }}>
-            <span className="field-label">Ссылка на документы</span>
-            <ValidatedInput
-              kind="url"
-              value={documentsUrl}
-              onChange={setDocumentsUrl}
-              hint="Необязательно. Например: https://disk.yandex.ru/…"
-            />
+          <label className="field field--span-all">
+            <FieldLabel hint="Ссылка на файлы клиента">Ссылка на документы</FieldLabel>
+            <ValidatedInput kind="url" value={documentsUrl} onChange={setDocumentsUrl} />
           </label>
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit">
+          <FormActions>
+            <Btn variant="primary" type="submit">
               {editingId ? 'Сохранить' : 'Создать'}
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={closeModal}>
+            </Btn>
+            <Btn variant="ghost" onClick={closeModal}>
               Отмена
-            </button>
-          </div>
+            </Btn>
+          </FormActions>
         </form>
       </Modal>
 
@@ -294,7 +304,7 @@ export function ClientsPage() {
       <PolicyDetailsModal
         open={policyDetailsId !== null}
         policyId={policyDetailsId}
-        canEdit={canManagePolicies}
+        canEdit={canEditPolicies}
         onClose={() => setPolicyDetailsId(null)}
         onEdit={(policyId) => {
           setPolicyDetailsId(null);
@@ -322,84 +332,68 @@ export function ClientsPage() {
         ) : null}
       </Modal>
 
-      <section className="card">
-        <div className="card-header">
-          <h2 className="card-title">Список</h2>
-        </div>
-        <div className="list-search-row">
-          <input
-            type="search"
+      <Card>
+        <CardHeader title="Список" />
+        <ListToolbar>
+          <ListSearchInput
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={setSearchInput}
             placeholder="Поиск по ФИО или телефону…"
             aria-label="Поиск клиентов по ФИО или телефону"
           />
-        </div>
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ФИО</th>
-                <th>Телефон</th>
-                <th>Документы</th>
-                <th className="col--narrow" />
-              </tr>
-            </thead>
-            <tbody>
-              {listTotal === 0 ? (
-                <tr className="data-table__empty-row">
-                  <td colSpan={4}>
-                    <p className="empty-hint empty-hint--in-cell">
-                      {debouncedQ
-                        ? 'Никого не нашли — попробуйте другой запрос.'
-                        : 'Пока нет клиентов — создайте первого.'}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                rows.map((c) => {
-                  const docHref = safeHttpHref(c.documentsUrl);
-                  return (
-                    <tr
-                      key={c.id}
-                      className="data-table__click-row"
-                      onClick={() => openClientDetails(c)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openClientDetails(c);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Открыть карточку клиента"
-                    >
-                      <td>
-                        {c.lastName} {c.firstName}
-                        {c.middleName ? ` ${c.middleName}` : ''}
-                      </td>
-                      <td>{c.phone}</td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {docHref ? (
-                          <a href={docHref} target="_blank" rel="noopener noreferrer" title={docHref}>
-                            Документы
-                          </a>
-                        ) : (
-                          <span style={{ color: 'var(--fg-muted)', fontWeight: 500 }}>—</span>
-                        )}
-                      </td>
-                      <td className="col--narrow" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => openEdit(c)}>
+        </ListToolbar>
+        <DataTable>
+          <DataTableHead>
+            <tr>
+              <DataTableTh>ФИО</DataTableTh>
+              <DataTableTh>Телефон</DataTableTh>
+              <DataTableTh>Документы</DataTableTh>
+              <DataTableTh narrow />
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {listTotal === 0 ? (
+              <DataTableEmpty colSpan={4}>
+                {debouncedQ
+                  ? 'Никого не нашли — попробуйте другой запрос.'
+                  : 'Пока нет клиентов — создайте первого.'}
+              </DataTableEmpty>
+            ) : (
+              rows.map((c) => {
+                const docHref = safeHttpHref(c.documentsUrl);
+                return (
+                  <DataTableClickRow
+                    key={c.id}
+                    onActivate={() => openClientDetails(c)}
+                    ariaLabel="Открыть карточку клиента"
+                  >
+                    <DataTableTd>
+                      {c.lastName} {c.firstName}
+                      {c.middleName ? ` ${c.middleName}` : ''}
+                    </DataTableTd>
+                    <DataTableTd>{c.phone}</DataTableTd>
+                    <DataTableTd onClick={(e) => e.stopPropagation()}>
+                      {docHref ? (
+                        <a href={docHref} target="_blank" rel="noopener noreferrer" title={docHref}>
+                          Документы
+                        </a>
+                      ) : (
+                        <span className="text-meta">—</span>
+                      )}
+                    </DataTableTd>
+                    <DataTableActionCell>
+                      {canEditClients ? (
+                        <Btn variant="ghost" size="sm" onClick={() => openEdit(c)}>
                           Изменить
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </Btn>
+                      ) : null}
+                    </DataTableActionCell>
+                  </DataTableClickRow>
+                );
+              })
+            )}
+          </DataTableBody>
+        </DataTable>
         <ListPaginationFooter
           total={listTotal}
           page={listPage}
@@ -411,7 +405,7 @@ export function ClientsPage() {
           }}
           navAriaLabel="Страницы списка клиентов"
         />
-      </section>
+      </Card>
     </div>
   );
 }

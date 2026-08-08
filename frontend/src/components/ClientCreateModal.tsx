@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { FieldHint } from './FieldHint';
+import { FieldLabel } from './FieldLabel';
+import { Btn } from './Btn';
+import { FormActions, FormError } from './FormActions';
 import { Modal } from './Modal';
 import { ValidatedInput } from './ValidatedInput';
 
@@ -92,22 +94,19 @@ export function ClientCreateModal({
     >
       <form className="form-grid" onSubmit={(ev) => void onSubmit(ev)}>
         <label className="field">
-          <span className="field-label">Фамилия</span>
+          <FieldLabel hint="Например: Иванов">Фамилия</FieldLabel>
           <ValidatedInput kind="personName" value={lastName} onChange={setLastName} required />
         </label>
         <label className="field">
-          <span className="field-label">Имя</span>
+          <FieldLabel hint="Например: Иван">Имя</FieldLabel>
           <ValidatedInput kind="personName" value={firstName} onChange={setFirstName} required />
         </label>
-        <label className="field" style={{ gridColumn: '1 / -1' }}>
-          <span className="field-label">Отчество</span>
+        <label className="field field--span-all">
+          <FieldLabel hint="Необязательно">Отчество</FieldLabel>
           <ValidatedInput kind="personName" value={middleName} onChange={setMiddleName} />
         </label>
-        <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <span className="field-label">
-            Телефон
-            <FieldHint>Например: +79001234567</FieldHint>
-          </span>
+        <div className="field field--span-all">
+          <FieldLabel hint="Основной номер клиента">Телефон</FieldLabel>
           <div className="phone-field__rows">
             <div className="phone-field__row">
               <ValidatedInput
@@ -117,17 +116,17 @@ export function ClientCreateModal({
                 required
                 autoComplete="tel"
                 placeholder="+7 …"
-                hideHint
               />
-              <button
-                type="button"
-                className="btn btn--ghost phone-field__row-btn"
+              <Btn
+                variant="ghost"
+                size="icon"
+                className="phone-field__row-btn"
                 title="Добавить ещё номер"
                 aria-label="Добавить ещё номер"
                 onClick={() => setExtraPhones((prev) => [...prev, ''])}
               >
                 +
-              </button>
+              </Btn>
             </div>
             {extraPhones.map((val, i) => (
               <div key={i} className="phone-field__row">
@@ -141,53 +140,38 @@ export function ClientCreateModal({
                   }}
                   autoComplete="tel"
                   placeholder="Доп. номер"
-                  hideHint
                 />
-                <button
-                  type="button"
-                  className="btn btn--ghost phone-field__row-btn"
+                <Btn
+                  variant="ghost"
+                  size="icon"
+                  className="phone-field__row-btn"
                   title="Убрать номер"
                   aria-label="Убрать номер"
                   onClick={() => setExtraPhones((prev) => prev.filter((_, j) => j !== i))}
                 >
                   ×
-                </button>
+                </Btn>
               </div>
             ))}
           </div>
         </div>
-        <label className="field" style={{ gridColumn: '1 / -1' }}>
-          <span className="field-label">Email</span>
-          <ValidatedInput
-            kind="email"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            hint="Необязательно. Например: user@mail.ru"
-          />
+        <label className="field field--span-all">
+          <FieldLabel hint="Необязательно">Email</FieldLabel>
+          <ValidatedInput kind="email" type="email" value={email} onChange={setEmail} />
         </label>
-        <label className="field" style={{ gridColumn: '1 / -1' }}>
-          <span className="field-label">Ссылка на документы</span>
-          <ValidatedInput
-            kind="url"
-            value={documentsUrl}
-            onChange={setDocumentsUrl}
-            hint="Необязательно. Например: https://disk.yandex.ru/…"
-          />
+        <label className="field field--span-all">
+          <FieldLabel hint="Ссылка на файлы клиента">Ссылка на документы</FieldLabel>
+          <ValidatedInput kind="url" value={documentsUrl} onChange={setDocumentsUrl} />
         </label>
-        {err ? (
-          <p className="form-error" role="alert" style={{ gridColumn: '1 / -1' }}>
-            {err}
-          </p>
-        ) : null}
-        <div className="form-actions">
-          <button className="btn btn--primary" type="submit">
+        <FormError>{err}</FormError>
+        <FormActions>
+          <Btn variant="primary" type="submit">
             Создать
-          </button>
-          <button type="button" className="btn btn--ghost" onClick={handleClose}>
+          </Btn>
+          <Btn variant="ghost" onClick={handleClose}>
             Отмена
-          </button>
-        </div>
+          </Btn>
+        </FormActions>
       </form>
     </Modal>
   );

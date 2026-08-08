@@ -19,7 +19,8 @@ type RenewalTaskCommentHistoryProps = {
 };
 
 export function RenewalTaskCommentHistory({ entries }: RenewalTaskCommentHistoryProps) {
-  if (entries.length === 0) return null;
+  // Один комментарий уже показан в поле «Комментарий» — историю не дублируем.
+  if (entries.length <= 1) return null;
 
   const sorted = [...entries].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

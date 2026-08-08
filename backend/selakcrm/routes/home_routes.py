@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from selakcrm.database import get_db
-from selakcrm.deps import JwtUser, get_current_user
+from selakcrm.deps import JwtUser, assert_permission, get_current_user
 from selakcrm.schemas_base import StrictBody
 from selakcrm.domain.renewal_task_order import sort_renewal_tasks_by_policy_date
 from selakcrm.models import Client, InsuranceCompany, InsuranceProduct, Policy, RenewalTask
@@ -26,6 +26,7 @@ from selakcrm.services.renewal_task_comment_map import (
     latest_renewal_task_comment,
     renewal_task_comment_history,
 )
+from selakcrm.services.role_permissions import permissions_for_role
 from selakcrm.time_utils import utcnow
 
 router = APIRouter(prefix="/home", tags=["home"])
@@ -39,7 +40,32 @@ RENEWAL_INCLUDE = (
     selectinload(RenewalTask.comments),
 )
 ACTIONABLE_RENEWAL_STATUSES = ("IN_PROGRESS", "AWAITING_ACTION", "POSTPONED", "AWAITING_FEEDBACK")
+TERMINAL_RENEWAL_STATUSES = ("RENEWED", "CLIENT_DECLINED")
 ALLOWED_TASK_LIMITS = {10, 25, 50}
+
+
+def _assert_reopen_allowed(db: Session, task: RenewalTask) -> None:
+    """Повторное открытие закрытой задачи запрещено, если у полиса уже есть другая активная."""
+    if task.status not in TERMINAL_RENEWAL_STATUSES:
+        return
+    other_open = (
+        db.query(RenewalTask.id)
+        .filter(
+            RenewalTask.policyId == task.policyId,
+            RenewalTask.id != task.id,
+            RenewalTask.status.in_(ACTIONABLE_RENEWAL_STATUSES),
+        )
+        .first()
+    )
+    if other_open:
+        raise HTTPException(
+            409,
+            detail={
+                "statusCode": 409,
+                "message": "У полиса уже есть активная задача продления",
+                "error": "Conflict",
+            },
+        )
 
 
 def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
@@ -76,7 +102,7 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
     p = t.policy
     display = renewal_task_row_display(t, today)
     renewed_policy = None
-    if t.status == "RENEWED" and t.renewedPolicy is not None:
+    if t.renewedPolicy is not None:
         renewed_policy = _policy_summary(t.renewedPolicy)
     return {
         "taskId": t.id,
@@ -111,16 +137,40 @@ def _map_renewal_row(t: RenewalTask, today: datetime) -> dict:
     }
 
 
-def _require_policy_form_client_create(user: JwtUser) -> None:
-    if user.role not in ("SUPER_ADMIN", "SUPER_MANAGER", "MANAGER"):
-        raise HTTPException(403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"})
+def _require_policy_form_access(db: Session, user: JwtUser) -> None:
+    have = set(permissions_for_role(db, user.role))
+    if not have.intersection({"policies.create", "tasks.create"}):
+        raise HTTPException(
+            403, detail={"statusCode": 403, "message": "Forbidden", "error": "Forbidden"}
+        )
+
+
+def _require_policy_form_client_create(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "policies.create")
+
+
+def _require_tasks_create(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "tasks.create")
+
+
+def _require_tasks_act(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "tasks.act")
+
+
+def _require_tasks_nav(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "nav.tasks")
+
+
+def _require_home_nav(db: Session, user: JwtUser) -> None:
+    assert_permission(db, user, "nav.home")
 
 
 @router.get("/policy-form/clients")
 def policy_form_clients(
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> list[dict]:
+    _require_policy_form_access(db, user)
     rows = (
         db.query(Client)
         .options(joinedload(Client.additionalPhones))
@@ -138,7 +188,7 @@ def policy_form_create_client(
     db: Session = Depends(get_db),
 ) -> dict:
     """Создание клиента из формы полиса (менеджер и супер-менеджер)."""
-    _require_policy_form_client_create(user)
+    _require_policy_form_client_create(db, user)
     _validate_documents_url(body.documentsUrl)
     c = create_client_record(
         db,
@@ -156,9 +206,10 @@ def policy_form_create_client(
 
 @router.get("/policy-form/companies")
 def policy_form_companies(
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> list[dict]:
+    _require_policy_form_access(db, user)
     rows = (
         db.query(InsuranceCompany)
         .options(joinedload(InsuranceCompany.products))
@@ -171,12 +222,13 @@ def policy_form_companies(
 
 @router.get("/policy-form/policies")
 def policy_form_policies(
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
     q: str | None = None,
     limit: str | None = None,
 ) -> list[dict]:
     """Поиск полисов для привязки ручной задачи продления."""
+    _require_policy_form_access(db, user)
     try:
         lim = int(limit or "20")
     except ValueError:
@@ -225,9 +277,10 @@ def policy_form_policies(
 @router.get("/policy-form/companies/{company_id}/products")
 def policy_form_products(
     company_id: str,
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> list[dict]:
+    _require_policy_form_access(db, user)
     items = (
         db.query(InsuranceProduct)
         .filter(InsuranceProduct.companyId == company_id, InsuranceProduct.deletedAt.is_(None))
@@ -239,9 +292,10 @@ def policy_form_products(
 
 @router.get("/renewal-tasks")
 def renewal_tasks(
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> list[dict]:
+    _require_home_nav(db, user)
     RenewalSyncService(db).sync_cached()
     tasks = (
         db.query(RenewalTask)
@@ -312,9 +366,10 @@ def create_manual_task(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
-    _require_policy_form_client_create(user)
+    _require_tasks_create(db, user)
     policy_dto = None
     if not body.policyId:
+        assert_permission(db, user, "policies.create")
         policy_dto = CreatePolicyIn(
             clientId=body.clientId,  # type: ignore[arg-type]
             companyId=body.companyId,  # type: ignore[arg-type]
@@ -340,12 +395,13 @@ def create_manual_task(
 
 @router.get("/tasks")
 def tasks_registry(
-    _: Annotated[JwtUser, Depends(get_current_user)],
+    user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
     page: str | None = None,
     limit: str | None = None,
     q: str | None = None,
 ) -> dict:
+    _require_tasks_nav(db, user)
     RenewalSyncService(db).sync_cached()
     p, lim = _page_limit(page, limit)
     skip = (p - 1) * lim
@@ -437,11 +493,13 @@ def postpone_task(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
+    _require_tasks_act(db, user)
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
     if not t:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    if t.status not in ACTIONABLE_RENEWAL_STATUSES:
+    if t.status not in ACTIONABLE_RENEWAL_STATUSES and t.status not in TERMINAL_RENEWAL_STATUSES:
         raise HTTPException(400, detail={"statusCode": 400, "message": "Задача недоступна для отсрочки", "error": "Bad Request"})
+    _assert_reopen_allowed(db, t)
     until = datetime.fromisoformat(body.until.replace("Z", "+00:00"))
     if until.tzinfo:
         until = until.replace(tzinfo=None)  # noqa: DTZ007
@@ -462,6 +520,7 @@ def postpone_task(
     now = utcnow()
     t.status = next_status
     t.snoozedUntil = until
+    t.declineReason = None
     comment_kind = "AWAITING_FEEDBACK" if body.mode == "feedback" else "POSTPONE"
     add_renewal_task_comment(db, task_id=task_id, kind=comment_kind, text=comment)
     if body.mode == "feedback":
@@ -493,11 +552,13 @@ def decline_task(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
+    _require_tasks_act(db, user)
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
     if not t:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
-    if t.status not in ACTIONABLE_RENEWAL_STATUSES:
+    if t.status not in ACTIONABLE_RENEWAL_STATUSES and t.status not in TERMINAL_RENEWAL_STATUSES:
         raise HTTPException(400, detail={"statusCode": 400, "message": "Задача уже закрыта", "error": "Bad Request"})
+    _assert_reopen_allowed(db, t)
     now = utcnow()
     t.status = "CLIENT_DECLINED"
     t.declineReason = body.reason
@@ -522,8 +583,21 @@ def renew_task(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
+    _require_tasks_act(db, user)
+    assert_permission(db, user, "policies.create")
     t = db.query(RenewalTask).options(joinedload(RenewalTask.policy)).filter(RenewalTask.id == task_id).first()
-    if not t or t.status not in ACTIONABLE_RENEWAL_STATUSES:
+    if not t:
+        raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
+    if t.status == "RENEWED":
+        raise HTTPException(
+            400,
+            detail={
+                "statusCode": 400,
+                "message": "Задача уже завершена: измените статус или отредактируйте оформленный полис",
+                "error": "Bad Request",
+            },
+        )
+    if t.status not in ACTIONABLE_RENEWAL_STATUSES:
         raise HTTPException(404, detail={"statusCode": 404, "message": "Not Found", "error": "Not Found"})
     new_p = create_policy_from_home(db, body, user.sub)
     now = utcnow()
@@ -555,6 +629,7 @@ def home_create_policy(
     user: Annotated[JwtUser, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> dict:
+    _require_policy_form_client_create(db, user)
     new_p = create_policy_from_home(db, body, user.sub)
     RenewalSyncService(db).sync_after_policy_change()
     new_p = (

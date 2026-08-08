@@ -12,6 +12,7 @@ from selakcrm.models import User
 from selakcrm.security import create_access_token, verify_password
 from selakcrm.serializers import user_public
 from selakcrm.services.audit_log import audit_log
+from selakcrm.services.role_permissions import permissions_for_role
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,7 +61,10 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> Log
         entity_id=u.id,
         payload={"ip": ip},
     )
-    return LoginOut(accessToken=token, user=user_public(u))
+    return LoginOut(
+        accessToken=token,
+        user=user_public(u, permissions_for_role(db, u.role)),
+    )
 
 
 @router.post("/logout")
@@ -76,4 +80,5 @@ def me(
 ) -> dict:
     u = db.get(User, user.sub)
     assert u
-    return {"id": u.id, "login": u.login, "role": u.role, "theme": u.theme}
+    return user_public(u, permissions_for_role(db, u.role))
+

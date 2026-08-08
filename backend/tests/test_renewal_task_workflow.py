@@ -220,3 +220,187 @@ def test_policy_patch_updates_client_and_company(client):
     assert body["client"]["lastName"] == "Petrov"
     assert body["company"]["name"] == "СК Б"
     assert body["product"]["name"] == "Продукт Б"
+
+
+def _renew_payload(client_id: str, company_id: str, product_id: str, number: str) -> dict:
+    return {
+        "clientId": client_id,
+        "companyId": company_id,
+        "productId": product_id,
+        "number": number,
+        "insuredObject": "Объект",
+        "premiumRubles": "1500",
+        "endDate": (utcnow() + timedelta(days=365)).strftime("%Y-%m-%d"),
+    }
+
+
+def test_closed_task_can_be_postponed_and_renewed(client):
+    headers = _auth_headers(client)
+    task_id, client_id, _ = _seed_open_task(client, headers)
+    decline = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/decline",
+        json={"reason": "Временно отказался"},
+        headers=headers,
+    )
+    assert decline.status_code == 200
+
+    until = (utcnow() + timedelta(days=2)).replace(microsecond=0).isoformat() + "Z"
+    reopen = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "simple", "until": until, "comment": "Передумали — перезвонить"},
+        headers=headers,
+    )
+    assert reopen.status_code == 200
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "POSTPONED"
+    assert row["declineReason"] is None
+    assert row["postponeComment"] == "Передумали — перезвонить"
+
+    comp = client.post("/api/v1/insurance-companies", json={"name": "СК Повтор"}, headers=headers).json()
+    product = client.post(
+        f"/api/v1/insurance-companies/{comp['id']}/products",
+        json={"name": "КАСКО"},
+        headers=headers,
+    ).json()
+    renew = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/renew",
+        json=_renew_payload(client_id, comp["id"], product["id"], "REOPEN-1"),
+        headers=headers,
+    )
+    assert renew.status_code == 200
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "RENEWED"
+    assert row["renewedPolicy"]["number"] == "REOPEN-1"
+
+    until2 = (utcnow() + timedelta(days=4)).replace(microsecond=0).isoformat() + "Z"
+    again = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "feedback", "until": until2, "comment": "Нужна правка после продления"},
+        headers=headers,
+    )
+    assert again.status_code == 200
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "AWAITING_FEEDBACK"
+
+
+def test_reopen_closed_task_conflicts_when_other_open_exists(client):
+    headers = _auth_headers(client)
+    task_id, _, policy_id = _seed_open_task(client, headers)
+    client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/decline",
+        json={"reason": "Отказ"},
+        headers=headers,
+    )
+    created = client.post("/api/v1/home/tasks", json={"policyId": policy_id}, headers=headers)
+    assert created.status_code == 200
+
+    until = (utcnow() + timedelta(days=2)).replace(microsecond=0).isoformat() + "Z"
+    conflict = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+        json={"mode": "simple", "until": until, "comment": "Попытка открыть старую"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+
+
+def test_renewed_task_can_be_declined(client):
+    headers = _auth_headers(client)
+    task_id, client_id, _ = _seed_open_task(client, headers)
+    comp = client.post("/api/v1/insurance-companies", json={"name": "СК Decline"}, headers=headers).json()
+    product = client.post(
+        f"/api/v1/insurance-companies/{comp['id']}/products",
+        json={"name": "ОСАГО"},
+        headers=headers,
+    ).json()
+    renew = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/renew",
+        json=_renew_payload(client_id, comp["id"], product["id"], "THEN-DECLINE"),
+        headers=headers,
+    )
+    assert renew.status_code == 200
+
+    declined = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/decline",
+        json={"reason": "Отмена после оформления"},
+        headers=headers,
+    )
+    assert declined.status_code == 200
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "CLIENT_DECLINED"
+    assert row["declineReason"] == "Отмена после оформления"
+    assert row["renewedPolicy"]["number"] == "THEN-DECLINE"
+
+
+def test_renew_on_already_renewed_is_rejected(client):
+    headers = _auth_headers(client)
+    task_id, client_id, _ = _seed_open_task(client, headers)
+    comp = client.post("/api/v1/insurance-companies", json={"name": "СК Раз"}, headers=headers).json()
+    product = client.post(
+        f"/api/v1/insurance-companies/{comp['id']}/products",
+        json={"name": "КАСКО"},
+        headers=headers,
+    ).json()
+    first = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/renew",
+        json=_renew_payload(client_id, comp["id"], product["id"], "FIRST-REN"),
+        headers=headers,
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/renew",
+        json=_renew_payload(client_id, comp["id"], product["id"], "SECOND-REN"),
+        headers=headers,
+    )
+    assert second.status_code == 400
+    assert "завершена" in second.json()["message"].lower()
+
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "RENEWED"
+    assert row["renewedPolicy"]["number"] == "FIRST-REN"
+
+
+def test_renew_after_reopen_from_renewed_works(client):
+    """После отсрочки завершённой задачи продление снова доступно."""
+    headers = _auth_headers(client)
+    task_id, client_id, _ = _seed_open_task(client, headers)
+    comp = client.post("/api/v1/insurance-companies", json={"name": "СК Reopen"}, headers=headers).json()
+    product = client.post(
+        f"/api/v1/insurance-companies/{comp['id']}/products",
+        json={"name": "ОСАГО"},
+        headers=headers,
+    ).json()
+    assert (
+        client.post(
+            f"/api/v1/home/renewal-tasks/{task_id}/renew",
+            json=_renew_payload(client_id, comp["id"], product["id"], "OLD-REN"),
+            headers=headers,
+        ).status_code
+        == 200
+    )
+
+    until = (utcnow() + timedelta(days=2)).replace(microsecond=0).isoformat() + "Z"
+    assert (
+        client.post(
+            f"/api/v1/home/renewal-tasks/{task_id}/postpone",
+            json={"mode": "simple", "until": until, "comment": "Нужно переоформить"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+
+    again = client.post(
+        f"/api/v1/home/renewal-tasks/{task_id}/renew",
+        json=_renew_payload(client_id, comp["id"], product["id"], "NEW-REN"),
+        headers=headers,
+    )
+    assert again.status_code == 200
+    registry = client.get("/api/v1/home/tasks?page=1&limit=50", headers=headers).json()
+    row = next(x for x in registry["items"] if x["taskId"] == task_id)
+    assert row["status"] == "RENEWED"
+    assert row["renewedPolicy"]["number"] == "NEW-REN"

@@ -21,28 +21,48 @@ export function renewalStatusBadgeClass(status: RenewalTaskStatusApi): string {
   return `task-status-badge task-status-badge--${status.toLowerCase().replace(/_/g, '-')}`;
 }
 
-/** Статусы, в которых можно отложить, продлить или зафиксировать отказ. */
-export function canActOnRenewalTask(status: RenewalTaskStatusApi): boolean {
-  return (
-    status === 'IN_PROGRESS' ||
-    status === 'AWAITING_ACTION' ||
-    status === 'POSTPONED' ||
-    status === 'AWAITING_FEEDBACK'
-  );
+/**
+ * Workflow-действия (отложить / отказ) доступны при любом статусе,
+ * в том числе для повторного открытия завершённых и отклонённых задач.
+ */
+export function canActOnRenewalTask(_status: RenewalTaskStatusApi): boolean {
+  return true;
 }
 
-/** Редактирование оформленного полиса завершённой задачи (супер-админ / супер-менеджер). */
-export function canEditRenewedRenewalTask(role: string | undefined): boolean {
-  return role === 'SUPER_ADMIN' || role === 'SUPER_MANAGER';
+/**
+ * Повторное оформление нового полиса запрещено для уже завершённой задачи:
+ * правим оформленный полис или сначала меняем статус (отложить / отказ).
+ */
+export function canRenewRenewalTask(status: RenewalTaskStatusApi): boolean {
+  return status !== 'RENEWED';
 }
 
-/** ID полиса для редактирования завершённой задачи: новый → исходный. */
+/** Редактирование полиса из задачи. */
+export function canEditRenewedRenewalTask(
+  meOrRole: { permissions?: string[] | null } | string | null | undefined,
+): boolean {
+  if (meOrRole == null) return false;
+  if (typeof meOrRole === 'string') {
+    // legacy: роль без permissions — прежнее поведение
+    return meOrRole === 'SUPER_ADMIN' || meOrRole === 'SUPER_MANAGER';
+  }
+  return Boolean(meOrRole.permissions?.includes('tasks.edit_policy'));
+}
+
+/**
+ * ID полиса для редактирования из задачи.
+ * Если есть оформленный (после продления) — он, иначе исходный.
+ */
 export function resolveRenewalTaskEditablePolicyId(task: {
   status: RenewalTaskStatusApi;
   policyId: string;
   renewedPolicyId?: string | null;
   renewedPolicy?: { id: string } | null;
-}): string | undefined {
-  if (task.status !== 'RENEWED') return undefined;
+}): string {
   return task.renewedPolicy?.id ?? task.renewedPolicyId ?? task.policyId;
+}
+
+/** На завершённой задаче главное действие — правка оформленного полиса. */
+export function isRenewalTaskEditPrimary(status: RenewalTaskStatusApi): boolean {
+  return status === 'RENEWED';
 }

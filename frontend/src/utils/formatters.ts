@@ -5,6 +5,20 @@ export function formatIsoDateRu(value: string | null | undefined): string {
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
 
+/** Дата и время ISO → краткая локаль ru-RU. */
+export function formatDateTimeRu(iso: string | null | undefined): string {
+  const raw = (iso ?? '').trim();
+  if (!raw) return '—';
+  try {
+    return new Intl.DateTimeFormat('ru-RU', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(raw));
+  } catch {
+    return raw;
+  }
+}
+
 const rubMoneyFmt = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,

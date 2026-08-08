@@ -15,7 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const m = await api<Me>('/auth/me');
-      setMe(m);
+      setMe({ ...m, permissions: m.permissions ?? [] });
     } catch {
       setToken(null);
       setMe(null);
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setSession = useCallback((token: string, user: Me) => {
     setToken(token);
-    setMe(user);
+    setMe({ ...user, permissions: user.permissions ?? [] });
   }, []);
 
   return (

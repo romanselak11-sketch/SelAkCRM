@@ -42,6 +42,7 @@ alwaysApply: true
 | Файл | Когда выбирать |
 |------|----------------|
 | `design-ui-designer.mdc` | Визуальный UI, компоненты, дизайн-система, визуальная иерархия. |
+| `design-swiss-brutalism.mdc` | **SelAkCRM UI:** Swiss Brutalism — токены, кнопки, таблицы, формы, статусы. Читать вместе с фронтенд-ролью при любой правке оформления. Полный канон: `docs/design-system.md`. |
 | `design-ux-researcher.mdc` | Исследования, гипотезы, интервью, usability, выводы из данных. |
 | `design-ux-architect.mdc` | IA, сценарии, user flows, UX-стратегия без углубления в визуал. |
 
@@ -77,6 +78,7 @@ alwaysApply: true
 ## Комбинирование ролей
 
 - **Фича end-to-end**: основная роль по слою (фронт **или** бэк **или** senior); при затрагивании архитектуры — дополнительно прочитай `engineering-software-architect.mdc` до проектирования границ.
+- **UI / вёрстка / дизайн-система фронта**: основная `engineering-frontend-developer.mdc` (или `design-ui-designer.mdc` при чистом визуале) **и обязательно** `design-swiss-brutalism.mdc`; детали — `docs/design-system.md`.
 - **Только ревью PR / диффа**: только `engineering-code-reviewer.mdc` (без реализации, если пользователь не просил правки).
 - **Документация к уже сделанному коду**: `engineering-technical-writer.mdc`; при необходимости диаграмм/формальных отчётов — `specialized-document-generator.mdc`.
 

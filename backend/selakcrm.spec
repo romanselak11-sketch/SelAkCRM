@@ -11,6 +11,8 @@ datas = [
     (str(backend_dir / "alembic"), "alembic"),
     (str(backend_dir / "alembic.ini"), "."),
     (str(backend_dir / "assets" / "selak.ico"), "assets"),
+    (str(backend_dir / "selakcrm" / "licensing" / "public.pem"), "selakcrm/licensing"),
+    (str(backend_dir / "selakcrm" / "licensing" / "public_next.pem"), "selakcrm/licensing"),
 ]
 if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
     datas.append((str(frontend_dist), "frontend_dist"))

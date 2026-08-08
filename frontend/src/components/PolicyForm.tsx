@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { hasPermission } from '../domain/permissions';
 import { formatMoneyForField, normalizeMoneyForApi } from '../utils/moneyInput';
 import { ClientCreateModal, type CreatedClient } from './ClientCreateModal';
+import { Btn } from './Btn';
 import { DateField } from './DateField';
+import { FieldLabel } from './FieldLabel';
+import { FormActions, FormError } from './FormActions';
 import { ScrollableChoiceList } from './ScrollableChoiceList';
 import { ValidatedInput } from './ValidatedInput';
 
@@ -69,7 +73,7 @@ function PolicyFormClientField({
   return (
     <>
       <div className="field">
-        <span className="field-label">Клиент</span>
+        <FieldLabel hint="Кому оформляем полис">Клиент</FieldLabel>
         <div className="choice-field-row">
           <ScrollableChoiceList
             value={clientId}
@@ -80,15 +84,16 @@ function PolicyFormClientField({
             searchPlaceholder="Введите имя клиента"
             emptySearchText="Клиенты не найдены"
           />
-          <button
-            type="button"
-            className="btn btn--ghost choice-field-row__add"
+          <Btn
+            variant="ghost"
+            size="icon"
+            className="choice-field-row__add"
             title="Новый клиент"
             aria-label="Новый клиент"
             onClick={onClientCreateOpen}
           >
             +
-          </button>
+          </Btn>
         </div>
       </div>
       <ClientCreateModal
@@ -324,10 +329,10 @@ export function PolicyForm({
         });
       } else if (createManualTask) {
         await api('/home/tasks', { method: 'POST', body: JSON.stringify(body) });
-      } else if (me?.role === 'MANAGER') {
-        await api('/home/policies', { method: 'POST', body: JSON.stringify(body) });
-      } else {
+      } else if (hasPermission(me, 'nav.policies')) {
         await api('/policies', { method: 'POST', body: JSON.stringify(body) });
+      } else {
+        await api('/home/policies', { method: 'POST', body: JSON.stringify(body) });
       }
       onSuccess();
     } catch (ex) {
@@ -347,7 +352,7 @@ export function PolicyForm({
         appendClient={appendClient}
       />
       <label className="field">
-        <span className="field-label">Компания</span>
+        <FieldLabel hint="Страховая компания">Компания</FieldLabel>
         <ScrollableChoiceList
           value={companyId}
           onChange={onCompanyChange}
@@ -356,7 +361,7 @@ export function PolicyForm({
         />
       </label>
       <label className="field">
-        <span className="field-label">Продукт</span>
+        <FieldLabel hint="Вид страхования">Продукт</FieldLabel>
         <ScrollableChoiceList
           value={productId}
           onChange={onProductChange}
@@ -365,21 +370,15 @@ export function PolicyForm({
         />
       </label>
       <label className="field">
-        <span className="field-label">Номер полиса</span>
-        <ValidatedInput
-          kind="text"
-          value={number}
-          onChange={setNumber}
-          hint="Например: D120-0000000245"
-          required
-        />
+        <FieldLabel hint="Как в договоре">Номер полиса</FieldLabel>
+        <ValidatedInput kind="text" value={number} onChange={setNumber} required />
       </label>
       <label className="field">
-        <span className="field-label">Объект страхования</span>
+        <FieldLabel hint="Что страхуем">Объект страхования</FieldLabel>
         <ValidatedInput kind="text" value={insuredObject} onChange={setInsuredObject} required />
       </label>
       <label className="field">
-        <span className="field-label">Стоимость полиса</span>
+        <FieldLabel hint="Сумма полиса в ₽">Стоимость полиса</FieldLabel>
         <ValidatedInput
           kind="money"
           value={insuranceSumS}
@@ -388,11 +387,11 @@ export function PolicyForm({
         />
       </label>
       <label className="field">
-        <span className="field-label">Комиссия агента в %</span>
+        <FieldLabel hint="Процент агента">Комиссия агента в %</FieldLabel>
         <ValidatedInput kind="decimal" value={premiumPercent} onChange={setPremiumPercent} />
       </label>
       <label className="field">
-        <span className="field-label">Дополнительная комиссия</span>
+        <FieldLabel hint="Сверх процента, в ₽">Дополнительная комиссия</FieldLabel>
         <ValidatedInput
           kind="money"
           value={premiumRubles}
@@ -401,31 +400,23 @@ export function PolicyForm({
         />
       </label>
       <label className="field">
-        <span className="field-label">Дата оформления</span>
+        <FieldLabel hint="Когда выписан полис">Дата оформления</FieldLabel>
         <DateField value={issueDate} onChange={setIssueDate} />
       </label>
       <label className="field">
-        <span className="field-label">Дата окончания полиса</span>
+        <FieldLabel hint="До какой даты действует">Дата окончания полиса</FieldLabel>
         <DateField value={endDate} onChange={setEndDate} />
       </label>
-      {refsErr ? (
-        <p className="form-error" role="alert">
-          {refsErr}
-        </p>
-      ) : null}
-      {err ? (
-        <p className="form-error" role="alert">
-          {err}
-        </p>
-      ) : null}
-      <div className="form-actions">
-        <button className="btn btn--primary" type="submit">
+      <FormError>{refsErr}</FormError>
+      <FormError>{err}</FormError>
+      <FormActions>
+        <Btn variant="primary" type="submit">
           {createManualTask ? 'Создать задачу' : 'Сохранить'}
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+        </Btn>
+        <Btn variant="ghost" onClick={onCancel}>
           Отмена
-        </button>
-      </div>
+        </Btn>
+      </FormActions>
     </form>
   );
 }

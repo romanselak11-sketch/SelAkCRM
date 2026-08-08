@@ -1,15 +1,21 @@
 from calendar import monthrange
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from selakcrm.database import get_db
-from selakcrm.deps import JwtUser, get_current_user, require_roles
-from selakcrm.models import AuditEvent, Policy
+from selakcrm.deps import JwtUser, require_permission
+from selakcrm.models import AuditEvent
+from selakcrm.services.analytics import (
+    AnalyticsFilters,
+    build_breakdowns,
+    build_daily,
+    build_renewals,
+    build_summary,
+)
 from selakcrm.services.audit_description import describe_audit_event
 from selakcrm.services.audit_log import purge_audit_older_than_one_year
 from selakcrm.time_utils import utcnow
@@ -22,11 +28,11 @@ ALLOWED_LIMITS = {10, 25, 50}
 
 def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     try:
-        lim = int(limit_raw or "10")
+        lim = int(limit_raw or "25")
     except ValueError:
-        lim = 10
+        lim = 25
     if lim not in ALLOWED_LIMITS:
-        lim = 10
+        lim = 25
     try:
         page = int(page_raw or "1")
     except ValueError:
@@ -36,106 +42,99 @@ def _page_limit(page_raw: str | None, limit_raw: str | None) -> tuple[int, int]:
     return page, lim
 
 
-def _admin_only(user: Annotated[JwtUser, Depends(require_roles("SUPER_ADMIN"))]) -> JwtUser:
+def _analytics_access(
+    user: Annotated[JwtUser, Depends(require_permission("nav.analytics"))],
+) -> JwtUser:
     return user
+
+
+def _audit_access(
+    user: Annotated[JwtUser, Depends(require_permission("audit.read"))],
+) -> JwtUser:
+    return user
+
+
+def _filters_from_query(
+    date_from: str,
+    date_to: str,
+    user_id: str | None,
+    unattributed: bool,
+    company_id: str | None,
+    product_id: str | None,
+) -> AnalyticsFilters:
+    return AnalyticsFilters(
+        date_from=date_from,
+        date_to=date_to,
+        user_id=user_id,
+        unattributed=unattributed,
+        company_id=company_id,
+        product_id=product_id,
+    )
 
 
 @router_analytics.get("/summary")
 def analytics_summary(
-    _: Annotated[JwtUser, Depends(_admin_only)],
+    _: Annotated[JwtUser, Depends(_analytics_access)],
     db: Session = Depends(get_db),
     date_from: str = Query(alias="from"),
     date_to: str = Query(alias="to"),
+    user_id: str | None = Query(default=None, alias="userId"),
+    unattributed: bool = Query(default=False),
+    company_id: str | None = Query(default=None, alias="companyId"),
+    product_id: str | None = Query(default=None, alias="productId"),
 ) -> dict:
-    from_d = datetime.fromisoformat(date_from[:10])
-    to_d = datetime.fromisoformat(date_to[:10])
-    to_end = datetime(to_d.year, to_d.month, to_d.day, 23, 59, 59, 999000)
-    len_days = (to_d.date() - from_d.date()).days + 1
-    prev_last_day = from_d - timedelta(days=1)
-    prev_end = datetime(prev_last_day.year, prev_last_day.month, prev_last_day.day, 23, 59, 59, 999000)
-    prev_start_day = prev_last_day - timedelta(days=len_days - 1)
-    prev_start = datetime(prev_start_day.year, prev_start_day.month, prev_start_day.day, 0, 0, 0)
-
-    def agg_between(start: datetime, end: datetime) -> tuple[Decimal, int]:
-        policy_day = func.coalesce(Policy.issueDate, Policy.createdAt)
-        rows = (
-            db.query(Policy)
-            .filter(Policy.deletedAt.is_(None), policy_day >= start, policy_day <= end)
-            .all()
-        )
-        s = sum((Decimal(str(p.agentIncomeD)) for p in rows), Decimal(0))
-        return s, len(rows)
-
-    cur_sum, cur_cnt = agg_between(from_d, to_end)
-    prev_sum, prev_cnt = agg_between(prev_start, prev_end)
-    cur_num = float(cur_sum)
-    prev_num = float(prev_sum)
-    revenue_delta_pct: float | None
-    if prev_num == 0:
-        revenue_delta_pct = 0.0 if cur_num == 0 else None
-    else:
-        revenue_delta_pct = ((cur_num - prev_num) / prev_num) * 100
-    if prev_cnt == 0:
-        policies_delta_pct: float | None = 0.0 if cur_cnt == 0 else None
-    else:
-        policies_delta_pct = ((cur_cnt - prev_cnt) / prev_cnt) * 100
-
-    return {
-        "revenue": str(cur_sum),
-        "policiesCount": cur_cnt,
-        "prevRevenue": str(prev_sum),
-        "prevPoliciesCount": prev_cnt,
-        "periodDays": len_days,
-        "prevFrom": prev_start.strftime("%Y-%m-%d"),
-        "prevTo": prev_end.strftime("%Y-%m-%d"),
-        "revenueDeltaPct": revenue_delta_pct,
-        "policiesDeltaPct": policies_delta_pct,
-    }
+    filters = _filters_from_query(date_from, date_to, user_id, unattributed, company_id, product_id)
+    return build_summary(db, filters)
 
 
 @router_analytics.get("/daily")
 def analytics_daily(
-    _: Annotated[JwtUser, Depends(_admin_only)],
+    _: Annotated[JwtUser, Depends(_analytics_access)],
     db: Session = Depends(get_db),
     date_from: str = Query(alias="from"),
     date_to: str = Query(alias="to"),
+    user_id: str | None = Query(default=None, alias="userId"),
+    unattributed: bool = Query(default=False),
+    company_id: str | None = Query(default=None, alias="companyId"),
+    product_id: str | None = Query(default=None, alias="productId"),
 ) -> dict:
-    from_d = datetime.fromisoformat(date_from[:10])
-    to_d = datetime.fromisoformat(date_to[:10])
-    if from_d > to_d:
-        return {"points": []}
-    to_end = datetime(to_d.year, to_d.month, to_d.day, 23, 59, 59, 999000)
-    rows = db.execute(
-        text(
-            """
-            SELECT date(COALESCE("issueDate", "createdAt")) AS day,
-                   CAST(COALESCE(SUM(CAST("agentIncomeD" AS REAL)), 0) AS TEXT) AS revenue,
-                   CAST(COUNT(*) AS INTEGER) AS policies_count
-            FROM "Policy"
-            WHERE "deletedAt" IS NULL
-              AND COALESCE("issueDate", "createdAt") >= :f
-              AND COALESCE("issueDate", "createdAt") <= :t
-            GROUP BY date(COALESCE("issueDate", "createdAt"))
-            ORDER BY 1
-            """
-        ),
-        {"f": from_d, "t": to_end},
-    ).fetchall()
-    m = {r[0]: {"revenue": r[1], "policiesCount": int(r[2])} for r in rows}
-    points = []
-    d = from_d.date()
-    end = to_d.date()
-    while d <= end:
-        key = d.strftime("%Y-%m-%d")
-        v = m.get(key)
-        points.append({"day": key, "revenue": v["revenue"] if v else "0", "policiesCount": v["policiesCount"] if v else 0})
-        d += timedelta(days=1)
-    return {"points": points}
+    filters = _filters_from_query(date_from, date_to, user_id, unattributed, company_id, product_id)
+    return build_daily(db, filters)
+
+
+@router_analytics.get("/breakdowns")
+def analytics_breakdowns(
+    _: Annotated[JwtUser, Depends(_analytics_access)],
+    db: Session = Depends(get_db),
+    date_from: str = Query(alias="from"),
+    date_to: str = Query(alias="to"),
+    user_id: str | None = Query(default=None, alias="userId"),
+    unattributed: bool = Query(default=False),
+    company_id: str | None = Query(default=None, alias="companyId"),
+    product_id: str | None = Query(default=None, alias="productId"),
+) -> dict:
+    filters = _filters_from_query(date_from, date_to, user_id, unattributed, company_id, product_id)
+    return build_breakdowns(db, filters)
+
+
+@router_analytics.get("/renewals")
+def analytics_renewals(
+    _: Annotated[JwtUser, Depends(_analytics_access)],
+    db: Session = Depends(get_db),
+    date_from: str = Query(alias="from"),
+    date_to: str = Query(alias="to"),
+    user_id: str | None = Query(default=None, alias="userId"),
+    unattributed: bool = Query(default=False),
+    company_id: str | None = Query(default=None, alias="companyId"),
+    product_id: str | None = Query(default=None, alias="productId"),
+) -> dict:
+    filters = _filters_from_query(date_from, date_to, user_id, unattributed, company_id, product_id)
+    return build_renewals(db, filters)
 
 
 @router_audit.get("/months")
 def audit_months(
-    _: Annotated[JwtUser, Depends(_admin_only)],
+    _: Annotated[JwtUser, Depends(_audit_access)],
     db: Session = Depends(get_db),
 ) -> dict:
     since = utcnow() - timedelta(days=365)
@@ -156,7 +155,7 @@ def audit_months(
 
 @router_audit.get("/days")
 def audit_days(
-    _: Annotated[JwtUser, Depends(_admin_only)],
+    _: Annotated[JwtUser, Depends(_audit_access)],
     db: Session = Depends(get_db),
     month: str = "",
 ) -> dict:
@@ -182,7 +181,7 @@ def audit_days(
 
 @router_audit.get("/events")
 def audit_events(
-    _: Annotated[JwtUser, Depends(_admin_only)],
+    _: Annotated[JwtUser, Depends(_audit_access)],
     db: Session = Depends(get_db),
     date: str = "",
     page: str | None = None,

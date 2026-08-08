@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { lockPageScroll, unlockPageScroll } from '../utils/pageScrollLock';
+import { Btn } from './Btn';
 
 type ModalProps = {
   open: boolean;
@@ -29,6 +30,7 @@ export function Modal({
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -73,12 +75,21 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const panel = panelRef.current;
     if (!panel) return;
     const focusable = panel.querySelector<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     );
     focusable?.focus();
+    return () => {
+      const prev = previouslyFocusedRef.current;
+      if (prev && document.contains(prev)) {
+        prev.focus();
+      }
+      previouslyFocusedRef.current = null;
+    };
   }, [open]);
 
   if (!open) return null;
@@ -122,9 +133,9 @@ export function Modal({
               </p>
             ) : null}
           </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Закрыть">
+          <Btn variant="ghost" size="icon" className="modal-close" onClick={onClose} aria-label="Закрыть">
             ×
-          </button>
+          </Btn>
         </header>
         <div className={bodyClassName ? `modal-body ${bodyClassName}` : 'modal-body'}>{children}</div>
       </div>

@@ -1,5 +1,7 @@
 export const LIST_PAGE_SIZES = [10, 25, 50] as const;
 export type ListPageSize = (typeof LIST_PAGE_SIZES)[number];
+/** Согласован с бэкендом и селектом «записей на странице». */
+export const DEFAULT_LIST_PAGE_SIZE: ListPageSize = 25;
 
 export type Paginated<T> = {
   items: T[];

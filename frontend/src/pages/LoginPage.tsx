@@ -3,7 +3,11 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
-import { FieldHint } from '../components/FieldHint';
+import { AuthCard } from '../components/AuthCard';
+import { Btn } from '../components/Btn';
+import { EmptyHint } from '../components/EmptyHint';
+import { FormActions, FormError } from '../components/FormActions';
+import { FieldLabel } from '../components/FieldLabel';
 import { ValidatedInput } from '../components/ValidatedInput';
 import { setDocumentTitle } from '../utils/documentTitle';
 
@@ -36,7 +40,13 @@ export function LoginPage() {
     try {
       const res = await api<{
         accessToken: string;
-        user: { id: string; login: string; role: 'SUPER_ADMIN' | 'SUPER_MANAGER' | 'MANAGER'; theme: 'light' | 'dark' };
+        user: {
+          id: string;
+          login: string;
+          role: 'SUPER_ADMIN' | 'SUPER_MANAGER' | 'MANAGER';
+          theme: 'light' | 'dark';
+          permissions: string[];
+        };
       }>('/auth/login', { method: 'POST', body: JSON.stringify({ login, password }) });
       setSession(res.accessToken, res.user);
       nav('/', { replace: true });
@@ -46,56 +56,44 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-layout">
-      <div className="card card--pad-lg auth-card">
-        <div className="page-titles auth-card-intro">
-          <p className="sidebar-brand-mark" style={{ fontSize: '1.25rem' }}>
-            SelAkCRM
-          </p>
-          <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-            Вход
-          </h1>
-          <p className="page-sub">Введите учётные данные, выданные администратором.</p>
-        </div>
-        <form className="form-grid form-grid--one" onSubmit={onSubmit}>
-          <label className="field">
-            <span className="field-label">Логин</span>
-            <ValidatedInput
-              kind="login"
-              value={login}
-              onChange={setLogin}
-              autoComplete="username"
-            />
-          </label>
-          <label className="field">
-            <span className="field-label">
-              Пароль
-              <FieldHint>Введите пароль от учётной записи</FieldHint>
-            </span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          {err && (
-            <p className="form-error" role="alert">
-              {err}
-            </p>
-          )}
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit">
-              Войти
-            </button>
-          </div>
-        </form>
-        {needsSetup ? (
-          <p style={{ marginTop: 'var(--space-5)', marginBottom: 0 }} className="empty-hint">
+    <AuthCard
+      brand="SelAkCRM"
+      title="Вход"
+      subtitle="Введите учётные данные, выданные администратором."
+      footer={
+        needsSetup ? (
+          <EmptyHint className="u-mt-5 u-mb-0">
             <Link to="/setup">Первичная настройка</Link>
-          </p>
-        ) : null}
-      </div>
-    </div>
+          </EmptyHint>
+        ) : null
+      }
+    >
+      <form className="form-grid form-grid--one" onSubmit={onSubmit}>
+        <label className="field">
+          <FieldLabel hint="Имя для входа">Логин</FieldLabel>
+          <ValidatedInput
+            kind="login"
+            value={login}
+            onChange={setLogin}
+            autoComplete="username"
+          />
+        </label>
+        <label className="field">
+          <FieldLabel hint="Пароль от учётной записи">Пароль</FieldLabel>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </label>
+        <FormError>{err}</FormError>
+        <FormActions>
+          <Btn variant="primary" type="submit">
+            Войти
+          </Btn>
+        </FormActions>
+      </form>
+    </AuthCard>
   );
 }

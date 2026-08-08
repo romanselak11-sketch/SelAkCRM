@@ -1,74 +1,156 @@
-/* Design tokens — light */
+/**
+ * Swiss Brutalism v1.0 — design tokens (SelAkCRM)
+ * Акцент — единственная бренд-переменная для онбординга клиента.
+ * База нейтральна: без теней и скруглений >8px.
+ */
+
 :root {
   color-scheme: light;
-  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --bg: #f3f5f9;
-  --bg-subtle: #e8ecf4;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --fg: #0c1222;
-  --fg-muted: #5c6578;
-  --border: #d7deea;
-  --border-strong: #b8c2d6;
+  /* ——— Spec tokens ——— */
+  --bg-page: #f0f2f5;
+  --bg-surface: #ffffff;
+  --text-primary: #0d0d0d;
+  --text-secondary: #6b7280;
+  --border-default: #e5e7eb;
+  --border-input: #d1d5db;
+  --accent: #ff4f00;
+  --accent-hover: #e04300;
+  --danger: #dc2626;
+  --success: #16a34a;
 
-  --accent: #3d5afe;
-  --accent-hover: #2f4ae8;
-  --accent-soft: rgba(61, 90, 254, 0.12);
-  --accent-ring: rgba(61, 90, 254, 0.35);
+  /* Derived (не бренд; строятся от accent / neutrals) */
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-ring: color-mix(in srgb, var(--accent) 20%, transparent);
+  --on-accent: #ffffff;
+  --danger-soft: #fef2f2;
+  --success-soft: color-mix(in srgb, var(--success) 12%, transparent);
+  --warning: #ca8a04;
+  --warning-soft: color-mix(in srgb, var(--warning) 12%, transparent);
 
-  --success: #0d9f6e;
-  --warning: #c27803;
-  --danger: #d92d20;
-  --danger-soft: rgba(217, 45, 32, 0.1);
+  /* Legacy aliases → существующий CSS */
+  --bg: var(--bg-page);
+  --bg-subtle: var(--bg-page);
+  --surface: var(--bg-surface);
+  --surface-2: var(--bg-page);
+  --fg: var(--text-primary);
+  --fg-muted: var(--text-secondary);
+  --border: var(--border-default);
+  --border-strong: var(--border-input);
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 28px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.14);
+  /* Typography */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --sidebar-w: 260px;
-  --sidebar-w-collapsed: 4.5rem;
+  /* No elevation (Swiss Brutalism) */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 
+  /* Radius ≤ 8px */
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-full: 8px;
+
+  /* Layout */
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 64px;
+  --content-max: 1440px;
+  --content-pad: 24px;
+  --card-pad: 20px;
+  --card-gap: 16px;
+  --row-height: 56px;
+  --row-height-compact: 48px;
+
+  /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 0.15s;
+  --duration-normal: 0.22s;
 
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
+  /* Spacing — 4px base */
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+
+  /* Type scale (CRM body = 14px) */
+  --text-xs: 0.75rem; /* 12 Caption */
+  --text-sm: 0.75rem; /* 12 Label */
+  --text-md: 0.875rem; /* 14 Body */
+  --text-base: 0.875rem; /* 14 */
+  --text-lg: 1rem; /* 16 H3 */
+  --text-xl: 1.25rem; /* 20 H2 */
+  --text-2xl: 1.5rem; /* 24 H1 */
+  --text-3xl: 1.5rem;
+
+  --lh-caption: 1.333; /* 16/12 */
+  --lh-body: 1.429; /* 20/14 */
+  --lh-h3: 1.5; /* 24/16 */
+  --lh-h2: 1.4; /* 28/20 */
+  --lh-h1: 1.333; /* 32/24 */
+
+  /* Controls */
+  --control-pad-y: 0.5rem;
+  --control-pad-x: 0.75rem;
+  --control-font: var(--text-md);
+  --control-line-height: var(--lh-body);
+  --control-height: 2.5rem; /* 40px */
+  --control-height-compact: 2rem; /* 32px */
+  --btn-pad-y: 0.625rem; /* 10 */
+  --btn-pad-x: 1rem; /* 16 */
+  --btn-pad-y-sm: 0.5rem; /* 8 ghost */
+  --btn-pad-x-sm: 0.75rem; /* 12 ghost */
+  --btn-font: var(--text-md);
+  --btn-font-sm: var(--text-md);
+  --icon-btn-size: 2.5rem;
+  --disabled-opacity: 0.45;
+  --btn-primary-inset: none;
+
+  /* Focus: border primary + ring accent 20% */
+  --focus-outline: 2px solid var(--accent);
+  --focus-outline-offset: 2px;
+  --focus-field-shadow: 0 0 0 2px var(--accent-soft);
+
+  /* Status dots (цвет только у точки) */
+  --task-in-progress-fg: var(--accent);
+  --task-awaiting-feedback-fg: var(--text-secondary);
+  --task-postponed-fg: var(--text-secondary);
+  --task-awaiting-action-fg: var(--warning);
+  --task-renewed-fg: var(--success);
+  --task-declined-fg: var(--danger);
+  --task-in-progress-bg: transparent;
+  --task-awaiting-feedback-bg: transparent;
+  --task-postponed-bg: transparent;
+  --task-awaiting-action-bg: transparent;
+  --task-renewed-bg: transparent;
+  --task-declined-bg: transparent;
 }
 
+/**
+ * Тёмная тема: нейтрали адаптируются, --accent остаётся брендом клиента.
+ */
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0b0f14;
-  --bg-subtle: #121922;
-  --surface: #141b24;
-  --surface-2: #1a2330;
-  --fg: #eef2f7;
-  --fg-muted: #9aa4b5;
-  --border: #263041;
-  --border-strong: #3a4a63;
-
-  --accent: #7c9bff;
-  --accent-hover: #9db4ff;
-  --accent-soft: rgba(124, 155, 255, 0.15);
-  --accent-ring: rgba(124, 155, 255, 0.45);
-
-  --success: #3ecf8e;
-  --warning: #f0b429;
-  --danger: #ff8a7a;
-  --danger-soft: rgba(255, 138, 122, 0.12);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.55);
+  --bg-page: #121417;
+  --bg-surface: #1a1d21;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --border-default: #2a2f36;
+  --border-input: #3f4650;
+  --accent: #ff4f00;
+  --accent-hover: #ff6a26;
+  --danger: #f87171;
+  --success: #4ade80;
+  --on-accent: #ffffff;
+  --danger-soft: color-mix(in srgb, var(--danger) 14%, var(--bg-surface));
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, transparent);
+  --accent-ring: color-mix(in srgb, var(--accent) 28%, transparent);
+  --warning: #fbbf24;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -81,6 +163,10 @@
     scroll-behavior: auto !important;
   }
 
+  .btn:active:not(:disabled):not(.btn--hint) {
+    transform: none;
+  }
+
   .loading-screen::after {
     animation: none !important;
     border-color: var(--border-strong);
@@ -90,5 +176,18 @@
 
   .theme-popover {
     animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .btn:focus-visible,
+  .control-trigger:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  .skip-link:focus,
+  main:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 }

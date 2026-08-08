@@ -13,6 +13,7 @@ import {
   toLocalYMD,
 } from '../utils/localDate';
 import { FieldRejectBubble } from './FieldRejectBubble';
+import { Btn } from './Btn';
 
 type DateFieldProps = {
   value: string;
@@ -233,9 +234,9 @@ export function DateField({
         />
         <div className="date-field__footer">
           {allowClear ? (
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
+            <Btn
+              variant="ghost"
+              size="sm"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 onChange('');
@@ -245,13 +246,13 @@ export function DateField({
               }}
             >
               Очистить
-            </button>
+            </Btn>
           ) : (
             <span className="date-field__footer-spacer" aria-hidden />
           )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
+          <Btn
+            variant="ghost"
+            size="sm"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const t = new Date();
@@ -262,7 +263,7 @@ export function DateField({
             }}
           >
             Сегодня
-          </button>
+          </Btn>
         </div>
       </div>
     ) : null;
@@ -325,9 +326,10 @@ export function DateField({
               }
             }}
           />
-          <button
-            type="button"
-            className="date-field__calendar-btn"
+          <Btn
+            variant="ghost"
+            size="icon"
+            className="btn--input-affix"
             disabled={disabled}
             tabIndex={-1}
             aria-label="Открыть календарь"
@@ -335,7 +337,7 @@ export function DateField({
             onClick={openCalendar}
           >
             <span className="date-field__icon" aria-hidden />
-          </button>
+          </Btn>
         </div>
       </div>
       {popover ? createPortal(popover, document.body) : null}

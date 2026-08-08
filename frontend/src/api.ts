@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'selak_token';
-export type { Me, UserRole } from './api.types';
+export type { Me } from './api.types';
 
 /** Пусто в dev: запросы на тот же origin, Vite проксирует `/api` на бэкенд. Для продакшена: полный URL API без завершающего слэша. */
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -48,6 +48,18 @@ export async function api<T>(
       typeof data === 'object' && data && 'message' in data
         ? String((data as { message: unknown }).message)
         : res.statusText;
+    if (
+      res.status === 403 &&
+      typeof data === 'object' &&
+      data &&
+      'licenseReason' in data
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('license-inactive', {
+          detail: String((data as { licenseReason: unknown }).licenseReason),
+        }),
+      );
+    }
     throw new ApiError(msg || 'Ошибка запроса', res.status, data);
   }
   return data as T;

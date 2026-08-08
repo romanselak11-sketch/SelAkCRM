@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from selakcrm.database import get_db
 from selakcrm.schemas_base import StrictBody
-from selakcrm.deps import JwtUser, get_current_user, require_roles
+from selakcrm.deps import JwtUser, get_current_user, require_permission
 from selakcrm.ids import new_cuid
 from selakcrm.models import User
 from selakcrm.security import hash_password
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 MAX_USERS = 10
 
 
-def _admin(user: Annotated[JwtUser, Depends(require_roles("SUPER_ADMIN"))]) -> JwtUser:
+def _admin(user: Annotated[JwtUser, Depends(require_permission("users.manage"))]) -> JwtUser:
     return user
 
 

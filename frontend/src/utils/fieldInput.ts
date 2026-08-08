@@ -1,4 +1,4 @@
-/** Типы ввода для полей форм: фильтрация символов и подсказки. */
+/** Типы ввода для полей форм: фильтрация символов. */
 
 export type FieldInputKind =
   | 'text'
@@ -9,17 +9,6 @@ export type FieldInputKind =
   | 'money'
   | 'decimal'
   | 'login';
-
-export const FIELD_HINTS: Record<FieldInputKind, string> = {
-  text: 'Например: Квартира',
-  personName: 'Например: Иванов',
-  phone: 'Например: +79001234567',
-  email: 'Например: user@mail.ru',
-  url: 'Например: https://disk.yandex.ru/…',
-  money: 'Например: 5 000,00',
-  decimal: 'Например: 12,5',
-  login: 'Например: admin',
-};
 
 /** Короткое сообщение во всплывающей подсказке при неверном символе. */
 export const FIELD_REJECT_MESSAGES: Record<FieldInputKind, string | null> = {
@@ -70,20 +59,16 @@ export function sanitizePhone(raw: string): string {
   return sanitizeText(raw).replace(/[^\d+\s()-]/g, '');
 }
 
-export function sanitizeEmail(raw: string): string {
+function sanitizeEmail(raw: string): string {
   return sanitizeText(raw).replace(/\s/g, '');
 }
 
-export function sanitizeUrl(raw: string): string {
+function sanitizeUrl(raw: string): string {
   return sanitizeText(raw).replace(/\s/g, '');
 }
 
-export function sanitizeLogin(raw: string): string {
+function sanitizeLogin(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9._-]/g, '');
-}
-
-export function sanitizeDigits(raw: string): string {
-  return raw.replace(/\D/g, '');
 }
 
 export function sanitizeDecimal(raw: string): string {

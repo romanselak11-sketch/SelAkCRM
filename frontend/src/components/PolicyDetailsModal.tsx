@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from '../api';
 import { formatIsoDateRu, formatMoneyRu } from '../utils/formatters';
+import { Btn } from './Btn';
+import { EmptyHint } from './EmptyHint';
+import { FormActions, FormError } from './FormActions';
 import { Modal } from './Modal';
 
 type PolicyDetails = {
@@ -88,13 +91,11 @@ export function PolicyDetailsModal({
       size="md"
     >
       {requestKey !== null && result.key !== requestKey ? (
-        <p className="empty-hint empty-hint--in-card">Загрузка полиса…</p>
+        <EmptyHint variant="inCard">Загрузка полиса…</EmptyHint>
       ) : result.error ? (
-        <p className="form-error" role="alert">
-          {result.error}
-        </p>
+        <FormError>{result.error}</FormError>
       ) : !result.policy ? (
-        <p className="empty-hint empty-hint--in-card">Полис не найден.</p>
+        <EmptyHint variant="inCard">Полис не найден.</EmptyHint>
       ) : (
         <div className="policy-details">
           <dl className="policy-details__grid">
@@ -135,20 +136,20 @@ export function PolicyDetailsModal({
           </dl>
 
           {canEdit ? (
-            <div className="form-actions">
-              <button type="button" className="btn btn--primary" onClick={() => onEdit(result.policy!.id)}>
+            <FormActions>
+              <Btn variant="primary" onClick={() => onEdit(result.policy!.id)}>
                 Изменить
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={onClose}>
+              </Btn>
+              <Btn variant="ghost" onClick={onClose}>
                 Закрыть
-              </button>
-            </div>
+              </Btn>
+            </FormActions>
           ) : (
-            <div className="form-actions">
-              <button type="button" className="btn btn--ghost" onClick={onClose}>
+            <FormActions>
+              <Btn variant="ghost" onClick={onClose}>
                 Закрыть
-              </button>
-            </div>
+              </Btn>
+            </FormActions>
           )}
         </div>
       )}

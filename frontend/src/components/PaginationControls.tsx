@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Btn } from './Btn';
 import { Stack } from './Stack';
 
 export type PaginationControlsProps = {
@@ -33,23 +34,23 @@ export function PaginationControls({
   return (
     <nav className={['pagination-controls', className].filter(Boolean).join(' ')} aria-label={ariaLabel}>
       <Stack direction="row" gap={3} align="center" justify="center" wrap className="pagination-controls__inner">
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm"
+        <Btn
+          variant="ghost"
+          size="sm"
           disabled={prevDisabled ?? page <= 1}
           onClick={() => onPageChange(Math.max(1, page - 1))}
         >
           {backLabel}
-        </button>
+        </Btn>
         {center}
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm"
+        <Btn
+          variant="ghost"
+          size="sm"
           disabled={nextDisabled ?? page >= totalPages}
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         >
           {forwardLabel}
-        </button>
+        </Btn>
       </Stack>
     </nav>
   );

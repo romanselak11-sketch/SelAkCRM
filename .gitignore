@@ -7,6 +7,8 @@ frontend/node_modules/
 backend/dist/
 backend/build/
 frontend/dist/
+license-admin/ui/dist/
+*.tsbuildinfo
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
@@ -26,5 +28,12 @@ backend/dev.db
 backend/*.db-journal
 .env
 .env.local
+backend/licensing_dev_keys/
+
+# License Admin: приватный ключ подписи и локальные данные вендора
+license-admin/data/
+license-admin/keys/private.pem
+license-admin/keys/private*.pem
+
 # Added by code-review-graph
 .code-review-graph/
