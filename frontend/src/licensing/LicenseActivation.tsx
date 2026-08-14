@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Btn } from '../components/Btn';
 import { ActivationCodeForm } from './ActivationCodeForm';
@@ -18,15 +18,30 @@ type Props = {
  */
 export function LicenseActivation({ status, requestCode, onChanged }: Props) {
   const [replacingKey, setReplacingKey] = useState(false);
-  const pending = status === 'pending_activation' && requestCode != null;
+  /** Мгновенный ответ activate/redeem, пока refetch ещё не обновил props. */
+  const [override, setOverride] = useState<Pick<LicenseStatusDto, 'status' | 'requestCode'> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!override) return;
+    if (status === override.status && requestCode === override.requestCode) {
+      setOverride(null);
+    }
+  }, [status, requestCode, override]);
+
+  const effectiveStatus = override?.status ?? status;
+  const effectiveRequestCode = override?.requestCode ?? requestCode;
+  const pending = effectiveStatus === 'pending_activation' && effectiveRequestCode != null;
 
   if (!pending || replacingKey) {
     return (
       <div className="stack stack--gap-3">
         <LicenseKeyForm
           autoFocus={replacingKey}
-          onActivated={() => {
+          onActivated={(next) => {
             setReplacingKey(false);
+            setOverride({ status: next.status, requestCode: next.requestCode });
             onChanged();
           }}
         />
@@ -44,12 +59,17 @@ export function LicenseActivation({ status, requestCode, onChanged }: Props) {
       <Step number={1} title="Отправьте код запроса поставщику">
         <CopyRow
           label="Код запроса"
-          value={requestCode}
+          value={effectiveRequestCode}
           description="Код содержит ваш ключ и отпечаток этого компьютера."
         />
       </Step>
       <Step number={2} title="Вставьте код активации в ответ">
-        <ActivationCodeForm onRedeemed={onChanged} />
+        <ActivationCodeForm
+          onRedeemed={(next) => {
+            setOverride({ status: next.status, requestCode: next.requestCode });
+            onChanged();
+          }}
+        />
       </Step>
       <Btn size="sm" variant="ghost" onClick={() => setReplacingKey(true)}>
         Ввести другой ключ

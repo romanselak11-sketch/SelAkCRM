@@ -34,6 +34,7 @@ describe('LicenseActivation', () => {
       <LicenseActivation status="pending_activation" requestCode={null} onChanged={noop} />,
     );
     expect(html).toContain('Лицензионный ключ');
+    expect(html).toContain('Вставьте ключ сюда');
     expect(html).not.toContain('Вставьте код активации');
   });
 });

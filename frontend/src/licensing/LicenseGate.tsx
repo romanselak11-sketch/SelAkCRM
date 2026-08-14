@@ -42,6 +42,7 @@ export function LicenseGate({ children }: Props) {
         <p className="page-sub license-gate__footer">Версия {license.productVersion || '—'}</p>
       }
     >
+      {license.error ? <p className="form-error" role="alert">{license.error}</p> : null}
       <LicenseActivation
         status={status}
         requestCode={license.requestCode}
